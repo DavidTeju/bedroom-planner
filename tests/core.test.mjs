@@ -136,3 +136,19 @@ test("every ready-made layout puts the same KALLAX shoe tower beside the PAX", (
   const tower = [["KALLAX 1x4 shoe tower", 39.375, 0, 15.375, 16.5, 57.875]];
   assert.deepEqual(shoes, [tower, tower, tower]);
 });
+
+test("the window-facing layout has a nightstand by the head of the bed on its open side", () => {
+  const run = loadCore();
+  const out = JSON.parse(run(`(() => {
+    const plan = BUILTIN.find(p => p.name === "Bed facing the window");
+    state.items = plan.items;
+    const bed = plan.items.find(i => i.kind === "bed"), ns = plan.items.filter(i => i.kind === "nightstand");
+    return JSON.stringify(ns.map(n => ({
+      againstBed: n.y + n.d === bed.y,
+      byHead: n.x + n.w === bed.x + bed.w,
+      topNearMattress: Math.abs(n.z + n.h - bed.h) <= 3,
+      blocked: isBad(n)
+    })));
+  })()`));
+  assert.deepEqual(out, [{ againstBed: true, byHead: true, topNearMattress: true, blocked: false }]);
+});
