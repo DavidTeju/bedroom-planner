@@ -15,6 +15,14 @@
   .bar { position: absolute; left: 10px; right: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
   .bar button { pointer-events: auto; background: rgba(255, 253, 248, .93); padding: 4px 9px; font-size: 12px; }
   .bar button.on { border-color: var(--accent); color: var(--accent); }
+  .bar .bulb { pointer-events: auto; display: inline-flex; align-items: center; gap: 10px; background: rgba(255, 253, 248, .93); border: 1px solid var(--line);
+    border-radius: 6px; padding: 2px 9px; font-size: 12px; }
+  .bar .bulb[hidden] { display: none; }
+  .bar .bulb label { display: inline-flex; align-items: center; gap: 5px; }
+  .bar .bulb input[type=range] { width: 110px; }
+  .bar .bulb input[type=color] { width: 26px; height: 20px; padding: 0; border: none; background: none; }
+  .bar .bulb b { min-width: 40px; font-weight: 600; }
+  .bar .bulb[data-mode=white] label:first-child, .bar .bulb[data-mode=colour] label:last-child { color: var(--accent); }
   .bar i { width: 6px; }
   #help { position: absolute; left: 10px; right: 10px; bottom: 8px; margin: 0; font-size: 12px; color: var(--muted); pointer-events: none;
     text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
@@ -50,7 +58,8 @@
       <button data-view="S">South wall</button><button data-view="W">West wall</button>
       <button data-view="inside">Stand inside</button><i></i>
       <button id="wallBtn"></button>
-      <button data-toggle="grid">Grid</button><button data-toggle="swings">Door swings</button><button data-toggle="names">Names</button><button data-toggle="lamps">Lamps only</button><button data-toggle="lightmap">Light map</button>
+      <button data-toggle="grid">Grid</button><button data-toggle="swings">Door swings</button><button data-toggle="names">Names</button><button data-toggle="lamps">Lamps only</button>
+      <span id="bulbCtl" class="bulb" hidden><label>White <input id="kelvin" type="range" min="2500" max="6500" step="100" value="2700"><b id="kelvinVal">2700K</b></label><label>or colour <input id="bulbColor" type="color" value="#ff4fa3"></label></span>
     </div>
     <p id="help">Drag a piece to move it · Shift-drag to raise or lower it · drag empty space to orbit · scroll to zoom · right-drag to pan · click a door to open it</p>
     <div id="tip" hidden></div>
@@ -633,12 +642,12 @@ function buildItem(it, face) {
 /* ---------- room ---------- */
 const roomG = new THREE.Group(), itemsG = new THREE.Group(), pickG = new THREE.Group(), overlayG = new THREE.Group();
 const gridG = new THREE.Group(), swingG = new THREE.Group(), ceilingG = new THREE.Group();
-const lampG = new THREE.Group(), luxG = new THREE.Group();
-scene.add(roomG, itemsG, pickG, overlayG, lampG, luxG);
+const lampG = new THREE.Group();
+scene.add(roomG, itemsG, pickG, overlayG, lampG);
 const WALL_T = 4.5;
 let wallSegs = [], doorLeaves = [], doorPivots = [];
 const doorOpen = {}; // opening id -> { t: how far open, 0..1, want: 0 or 1 }
-const show = { grid: false, swings: true, names: false, lamps: false, lightmap: false };
+const show = { grid: false, swings: true, names: false, lamps: false };
 let wallMode = "auto";
 
 const floorMat = new THREE.MeshStandardMaterial({ roughness: 0.55, map: (() => {
@@ -805,47 +814,42 @@ function lamplight() {
   hemi.intensity = night ? 0.05 : 0.85;
   sun.intensity = night ? 0 : 2.3;
   scene.environmentIntensity = night ? 0.03 : 0.5;
+  const colour = bulbColour();
   SHADE.emissiveIntensity = night ? 2.4 : 0.55;
+  SHADE.emissive.set(night ? colour : 0xffcf7a);
   SKY.color.set(night ? 0x1c2534 : 0xd9ecf7);
   if (matCache.has("fixture")) matCache.get("fixture").emissiveIntensity = night ? 0 : 0.9;
   for (const l of [...lampG.children]) { l.dispose(); lampG.remove(l); }
   if (!night) return;
   // the same bulbs, places and lumens as the core's light estimate
   for (const l of lightSources(state.items)) {
-    const light = new THREE.PointLight(0xffc98a, l.lm * 8, 0, 2);
+    const light = new THREE.PointLight(colour, l.lm * 8, 0, 2);
     light.position.set(l.x, l.z, l.y);
     lampG.add(light);
   }
 }
 
-/* ---------- light map: the core's lamps-only lux estimate, painted on the floor ---------- */
-let luxKey = "", luxTimer = 0;
-function luxMap() {
-  if (!show.lightmap) { luxKey = ""; wipe(luxG); return; }
-  const key = JSON.stringify([state.room, state.items]);
-  if (key === luxKey) return;
-  luxKey = key;
-  // a layout being dragged settles before the estimate reruns
-  clearTimeout(luxTimer);
-  luxTimer = setTimeout(() => {
-    const r = lightReport(state.items), m = r.map, { W, L } = state.room;
-    wipe(luxG);
-    const tex = canvasTex(m.cols, m.rows, g => m.vals.forEach((v, k) => {
-      if (v === null) return;
-      g.fillStyle = luxColor(v);
-      g.fillRect(k % m.cols, Math.floor(k / m.cols), 1, 1);
-    }));
-    tex.magFilter = THREE.NearestFilter;
-    const plane = new THREE.Mesh(new THREE.PlaneGeometry(m.cols * m.step, m.rows * m.step),
-      new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.82, depthWrite: false, toneMapped: false }));
-    plane.rotation.x = -Math.PI / 2;
-    plane.position.set(m.cols * m.step / 2, 0.35, m.rows * m.step / 2);
-    plane.renderOrder = 2;
-    luxG.add(plane);
-    for (const s of r.reading) luxG.add(tag(`${Math.round(s.lux)} lux`, s.lux >= READ_LUX ? "gap" : "bad", s.x, s.z, s.y));
-    luxG.add(tag(`room average ${Math.round(r.avg)} lux · darkest tenth ${Math.round(r.p10)} · at 30″`, "compass", W / 2, 0, -18));
-  }, 120);
+/* ---------- bulb colour for lamps-only: a white temperature or any colour ---------- */
+const BULB_KEY = "bedroom-planner-bulb";
+let bulb = { mode: "white", kelvin: 2700, rgb: "#ff4fa3" };
+try { Object.assign(bulb, JSON.parse(localStorage.getItem(BULB_KEY)) || {}); } catch { /* a viewer without storage keeps the default */ }
+const bulbColour = () => bulb.mode === "white" ? new THREE.Color(...kelvinRGB(bulb.kelvin).map(v => v / 255)).convertSRGBToLinear() : new THREE.Color(bulb.rgb);
+function setBulb(change) {
+  Object.assign(bulb, change);
+  try { localStorage.setItem(BULB_KEY, JSON.stringify(bulb)); } catch { /* not saved; still shown */ }
+  drawBulb();
+  lamplight();
 }
+function drawBulb() {
+  const box = document.getElementById("bulbCtl");
+  box.hidden = !show.lamps;
+  document.getElementById("kelvin").value = bulb.kelvin;
+  document.getElementById("kelvinVal").textContent = bulb.kelvin + "K";
+  document.getElementById("bulbColor").value = bulb.rgb;
+  box.dataset.mode = bulb.mode;
+}
+document.getElementById("kelvin").addEventListener("input", e => setBulb({ mode: "white", kelvin: +e.target.value }));
+document.getElementById("bulbColor").addEventListener("input", e => setBulb({ mode: "colour", rgb: e.target.value }));
 
 /* ---------- keeping the scene in step with the layout ---------- */
 const built = new Map(); // item id -> { key, group }
@@ -887,7 +891,6 @@ function sync() {
   }
   for (const [id, b] of built) if (!seen.has(id)) { wipe(b.group); itemsG.remove(b.group); built.delete(id); }
   lamplight();
-  luxMap();
 
   wipe(pickG); wipe(overlayG);
   for (const it of state.items) {
@@ -1028,6 +1031,7 @@ const WALL_LABEL = { auto: "Walls: near ones hidden", all: "Walls: all shown", n
 function drawBar() {
   document.getElementById("wallBtn").textContent = WALL_LABEL[wallMode];
   for (const b of document.querySelectorAll("[data-toggle]")) b.classList.toggle("on", show[b.dataset.toggle]);
+  drawBulb();
 }
 document.getElementById("bar").addEventListener("click", e => {
   const b = e.target.closest("button");

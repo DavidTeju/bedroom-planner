@@ -253,12 +253,24 @@ test("the 2D plan can overlay the lamps-only light map", () => {
   assert.match(html, /lightReport\(state\.items\)/);
 });
 
-test("the 3D view can paint the lamps-only light map on the floor, in the core's colours", () => {
+test("the 2D plan colours the light map from the core, and the 3D view has no light map", () => {
   const run = loadCore();
   assert.equal(run(`luxColor(10)`), "#1f2a44");
   assert.equal(run(`luxColor(1000)`), "#fff6d6");
-  const html = read("index.html");
-  assert.match(html, /data-toggle="lightmap"/);
-  assert.match(html, /lightReport\(state\.items/);
   assert.doesNotMatch(read("plan.html"), /function luxColor/, "the 2D plan uses the shared colours");
+  assert.doesNotMatch(read("index.html"), /data-toggle="lightmap"|lightReport\(/);
+});
+
+test("a white bulb's colour temperature turns into the right RGB", () => {
+  const run = loadCore();
+  const near = (got, want) => got.every((v, i) => Math.abs(v - want[i]) <= 3);
+  const warm = JSON.parse(run(`JSON.stringify(kelvinRGB(2700))`)), cool = JSON.parse(run(`JSON.stringify(kelvinRGB(6500))`));
+  assert.ok(near(warm, [255, 167, 87]), "2700K: " + warm);
+  assert.ok(near(cool, [255, 254, 250]), "6500K: " + cool);
+});
+
+test("lamps-only mode lets the bulbs be any white temperature or any colour", () => {
+  const html = read("index.html");
+  assert.match(html, /id="kelvin"[^>]*min="2500"[^>]*max="6500"/);
+  assert.match(html, /id="bulbColor"[^>]*type="color"|type="color"[^>]*id="bulbColor"/);
 });

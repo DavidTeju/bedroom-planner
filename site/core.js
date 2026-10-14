@@ -315,6 +315,14 @@ function luxColor(v) {
   const a = LUX_STOPS[i], b = LUX_STOPS[i + 1];
   return "#" + [1, 3, 5].map(k => mix(a.slice(k, k + 2), b.slice(k, k + 2))).join("");
 }
+// RGB of a white bulb at a colour temperature, in kelvin (Tanner Helland's fit to blackbody colours).
+function kelvinRGB(k) {
+  const t = k / 100, c = v => Math.round(Math.min(Math.max(v, 0), 255));
+  const r = t <= 66 ? 255 : 329.698727446 * Math.pow(t - 60, -0.1332047592);
+  const g = t <= 66 ? 99.4708025861 * Math.log(t) - 161.1195681661 : 288.1221695283 * Math.pow(t - 60, -0.0755148492);
+  const b = t >= 66 ? 255 : t <= 19 ? 0 : 138.5177312231 * Math.log(t - 10) - 305.0447927307;
+  return [c(r), c(g), c(b)];
+}
 const READ_LUX = 300, ROOM_LUX = 50;
 // Lux over a face-up plane (default 30 in, about where a book or a folded shirt is), the bed's
 // reading spots, and the room's average and darkest tenth. Spots under furniture taller than the

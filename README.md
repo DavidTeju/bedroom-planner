@@ -6,8 +6,9 @@ A planner for Femi's San Francisco bedroom, built from his own measurements. Inc
 - **3D view** (`site/index.html`): a three.js scene with modelled furniture. Drag a piece to move
   it, Shift-drag to raise or lower it, R rotates, arrow keys nudge, click a door to open it, and
   the toolbar switches between the 3D, top, wall and standing-inside views. **Lamps only**
-  turns off daylight and the ceiling fixture and lights each lamp and sconce. **Light map** paints
-  the lighting estimate on the floor and labels each bed reading spot.
+  turns off daylight and the ceiling fixture and lights each lamp and sconce. Its bulb control sets
+  every lamp to a white temperature (2500 to 6500K, the Tapo L535E's range) or any colour, and
+  remembers the choice in that browser.
 - **2D plan** (`site/plan.html`): floor plan plus the four walls seen from inside.
   **Light map, lamps only** overlays the lighting estimate.
 
