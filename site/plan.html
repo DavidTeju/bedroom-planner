@@ -58,6 +58,9 @@
   .leaf { stroke-width: 2.5; vector-effect: non-scaling-stroke; }
   .clear { stroke: var(--accent); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 3 3; }
   .clear-t { fill: var(--accent); font-weight: 600; }
+  .lux-t { font-weight: 700; paint-order: stroke; stroke: #fff; stroke-width: 1.2px; }
+  .lux-scale { width: 160px; height: 10px; border-radius: 3px; background: linear-gradient(90deg, #1f2a44, #6b4f7a, #d9825b, #ffd36b, #fff6d6); }
+  #lightBtn.on { border-color: var(--accent); color: var(--accent); }
   @media print { body { height: auto; overflow: visible; } aside, header p { display: none; } main { grid-template-columns: 1fr; } #main { height: 150mm; } .card { border: none; } }
 </style>
 </head>
@@ -78,7 +81,16 @@
 <script>
 "use strict";
 const VIEWS = ["plan", "N", "E", "S", "W"];
-let mainView = "plan";
+let mainView = "plan", showLight = false;
+// Lamps-only lux, dark navy at 10 lux or less to pale yellow at 1000.
+const LUX_STOPS = ["#1f2a44", "#6b4f7a", "#d9825b", "#ffd36b", "#fff6d6"];
+function luxColor(v) {
+  const t = clamp(Math.log10(Math.max(v, 1) / 10) / 2, 0, 1) * (LUX_STOPS.length - 1), i = Math.min(Math.floor(t), LUX_STOPS.length - 2), f = t - i;
+  const mix = (a, b) => Math.round(parseInt(a, 16) * (1 - f) + parseInt(b, 16) * f).toString(16).padStart(2, "0");
+  const a = LUX_STOPS[i], b = LUX_STOPS[i + 1];
+  return "#" + [1, 3, 5].map(k => mix(a.slice(k, k + 2), b.slice(k, k + 2))).join("");
+}
+let lastLight = null;
 
 const box = (x, y, w, h, cls = "deco", rx = 0) => w > 0 && h > 0 ? `<rect class="${cls}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}"/>` : "";
 const seg = (x1, y1, x2, y2, cls = "deco") => `<line class="${cls}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
@@ -212,6 +224,13 @@ function planSvg() {
     g += `<text class="t-muted" x="${W - bx / 2}" y="${by / 2 - 1}" font-size="3.6" text-anchor="middle">in-push</text>`;
     g += `<text class="t-muted" x="${W - bx / 2}" y="${by / 2 + 4}" font-size="3.6" text-anchor="middle">${n(bx)} × ${n(by)}</text>`;
   }
+  if (showLight) {
+    // lamps-only lux at 30 in, under the furniture outlines
+    const r = lastLight = lightReport(state.items), m = r.map;
+    g += `<g clip-path="url(#roomClip)" pointer-events="none" opacity=".85">`;
+    m.vals.forEach((v, k) => { if (v !== null) g += `<rect x="${(k % m.cols) * m.step}" y="${Math.floor(k / m.cols) * m.step}" width="${m.step + 0.05}" height="${m.step + 0.05}" fill="${luxColor(v)}"/>`; });
+    g += `</g>`;
+  }
   // rugs and other non-solid pieces go underneath
   for (const it of [...state.items].sort((a, b) => a.solid - b.solid)) {
     const cls = "item" + (it.id === selId ? " sel" : "") + (isBad(it) ? " bad" : "");
@@ -231,6 +250,11 @@ function planSvg() {
     g += `<path class="swing wardrobe-swing" pointer-events="none" d="M${sw.hx} ${sw.hy}L${sw.fx} ${sw.fy}A${sw.r} ${sw.r} 0 0 ${cross > 0 ? 1 : 0} ${sw.ox} ${sw.oy}Z"/>`;
   }
   g += `<polygon class="wall" points="${poly}" pointer-events="none"/>`;
+  if (showLight && lastLight) for (const s of lastLight.reading) {
+    const ok = s.lux >= READ_LUX;
+    g += `<g pointer-events="none"><circle cx="${s.x}" cy="${s.y}" r="2.2" fill="${ok ? "#2f8f5b" : "#c0392b"}" stroke="#fff" stroke-width=".6"/>`;
+    g += `<text class="lux-t" x="${s.x}" y="${s.y - 3.5}" font-size="4" text-anchor="middle">${Math.round(s.lux)} lux</text></g>`;
+  }
   for (const o of state.openings) {
     const sg = opSeg(o), mid = o.off + o.w / 2, sw = swingGeom(o);
     if (sw) {
@@ -332,7 +356,11 @@ function drawViews() {
     svg.innerHTML = g;
   }
   const r = state.room;
-  $("#legend").innerHTML = `<b>Wall views:</b>
+  const lr = showLight && lastLight;
+  $("#legend").innerHTML = `<button id="lightBtn" class="${showLight ? "on" : ""}">Light map, lamps only</button>` + (lr
+    ? `<span><span class="lux-scale"></span>10 → 1000 lux at 30″</span><span>Reading spots ${lr.reading.map(s => Math.round(s.lux)).join(" / ")} lux (aim ${READ_LUX}+)</span>
+       <span>Room average ${Math.round(lr.avg)} lux, darkest tenth ${Math.round(lr.p10)} (aim ${ROOM_LUX}+)</span><span>Bulbs: 1100 lm in the floor lamp and sconces; your lamps are guesses</span>`
+    : "") + `<b>Wall views:</b>
     <span><i></i>on the wall (within ${n(r.flush)}″)</span>
     <span><i class="near"></i>close (within ${n(r.near)}″)</span>
     <span><i class="far"></i>further out, shown as a ghost</span>`;
@@ -371,6 +399,7 @@ mainEl.addEventListener("pointerup", endDrag);
 mainEl.addEventListener("pointercancel", endDrag);
 
 onDraw = drawViews;
+document.addEventListener("click", e => { if (e.target.id === "lightBtn") { showLight = !showLight; drawViews(); } });
 layoutViews(); initPlanner();
 </script>
 </body>

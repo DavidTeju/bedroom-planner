@@ -800,7 +800,6 @@ function updateWalls() {
 }
 
 /* ---------- lamps only: daylight and the ceiling fixture off, every lamp and sconce on ---------- */
-const FACE_STEP = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 function lamplight() {
   const night = show.lamps;
   hemi.intensity = night ? 0.05 : 0.85;
@@ -811,13 +810,10 @@ function lamplight() {
   if (matCache.has("fixture")) matCache.get("fixture").emissiveIntensity = night ? 0 : 0.9;
   for (const l of [...lampG.children]) { l.dispose(); lampG.remove(l); }
   if (!night) return;
-  for (const it of state.items) {
-    const k = kindOf(it);
-    if (k !== "lamp" && k !== "sconce") continue;
-    const floor = k === "lamp" && it.z === 0 && it.h >= 40, small = k === "lamp" && !floor && it.h < 12;
-    const light = new THREE.PointLight(0xffc98a, floor ? 9000 : k === "sconce" ? 3500 : small ? 250 : 1400, 0, 2);
-    const [dx, dz] = k === "sconce" ? FACE_STEP[frontDir(it)] : [0, 0];
-    light.position.set(it.x + it.w / 2 + dx * 4, it.z + it.h * (k === "sconce" ? 0.7 : 0.82), it.y + it.d / 2 + dz * 4);
+  // the same bulbs, places and lumens as the core's light estimate
+  for (const l of lightSources(state.items)) {
+    const light = new THREE.PointLight(0xffc98a, l.lm * 8, 0, 2);
+    light.position.set(l.x, l.z, l.y);
     lampG.add(light);
   }
 }

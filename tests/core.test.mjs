@@ -215,3 +215,40 @@ test("a plug-in sconce is a thin wall piece that both views draw", () => {
 test("the 3D view can switch the room to lamplight", () => {
   assert.match(read("index.html"), /data-toggle="lamps"/);
 });
+
+test("a lamp lights a point by the inverse-square and cosine laws", () => {
+  const run = loadCore();
+  const out = JSON.parse(run(`(() => {
+    const src = { x: 0, y: 0, z: 39.3701, lm: 1000, down: 1 };
+    return JSON.stringify([directLux(src, 0, 0, 0, []), directLux(src, 39.3701, 0, 0, []), directLux(src, 0, 0, 50, [])]);
+  })()`));
+  const I = 0.85 * 1000 / (2 * Math.PI);
+  assert.ok(Math.abs(out[0] - I) < 0.5, "straight below, 1 m away: " + out[0]);
+  assert.ok(Math.abs(out[1] - I * Math.SQRT1_2 / 2) < 0.5, "1 m below and 1 m across: " + out[1]);
+  assert.equal(out[2], 0, "a plane above the lamp gets no direct light");
+});
+
+test("a solid piece between a lamp and a point shades it", () => {
+  const run = loadCore();
+  const lux = JSON.parse(run(`JSON.stringify(directLux({ x: 0, y: 0, z: 60, lm: 1000, down: 0.5 }, 40, 0, 0, [{ x: 15, y: -5, w: 10, d: 10, z: 0, h: 50 }]))`));
+  assert.equal(lux, 0);
+});
+
+test("the light map reports each layout's reading spots, average and darkest tenth", () => {
+  const run = loadCore();
+  const out = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => { const r = lightReport(p.items); return { spots: r.reading.length, avg: r.avg > 0, p10: r.p10 >= 0, cells: r.map.vals.length > 0 }; }))`));
+  assert.deepEqual(out, [{ spots: 1, avg: true, p10: true, cells: true }, { spots: 1, avg: true, p10: true, cells: true }, { spots: 2, avg: true, p10: true, cells: true }]);
+});
+
+test("with only the lamps on, every reading spot gets 300 lux and the room averages 50", () => {
+  const run = loadCore();
+  const out = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => { const r = lightReport(p.items);
+    return { name: p.name, dimSpots: r.reading.filter(s => s.lux < READ_LUX).map(s => s.side + " " + Math.round(s.lux)), avgOk: r.avg >= ROOM_LUX }; }))`));
+  for (const p of out) assert.deepEqual(p, { name: p.name, dimSpots: [], avgOk: true });
+});
+
+test("the 2D plan can overlay the lamps-only light map", () => {
+  const html = read("plan.html");
+  assert.match(html, /id="lightBtn"/);
+  assert.match(html, /lightReport\(state\.items\)/);
+});

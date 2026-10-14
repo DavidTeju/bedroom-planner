@@ -42,31 +42,31 @@ const pc = ([name, kind, x, y, w, d, h, z = 0, headSide = ""], i) => ({ id: kind
 const layout = (id, name, note, why, rows) => ({ id, name, note, why, items: rows.map(pc) });
 const BUILTIN = [
   layout("b3", "Bed facing the window", "wake to light",
-    "Bed turned with its head on the east wall and its foot toward the window, so the middle of the room is one open floor. A tall PAX wardrobe fills the north-west corner facing south, with a KALLAX shoe tower beside it and clear of the door swing. Its doors open onto clear floor: the MALM tall chest starts on the west wall just past them, and the open RIGGA rack runs along the in-push facing south, 30 in from the bed. A small nightstand stands at the head of the bed's open side; it leaves 14 in in front of the rack's east end. The bench sits across the foot of the bed. No ceiling light: a floor lamp stands in the window corner, a plug-in swing-arm sconce over the nightstand is the reading light, and your BÖJA, Mika and PELARBOJ lamps sit on the chest, the nightstand and the KALLAX. Tightest walkway is 27 in, between the bench and the window wall; the lamp sits at its dead end. The open rack is visible clutter.", [
+    "Bed turned with its head on the east wall and its foot toward the window, so the middle of the room is one open floor. A tall PAX wardrobe fills the north-west corner facing south, with a KALLAX shoe tower beside it and clear of the door swing. Its doors open onto clear floor: the MALM tall chest starts on the west wall just past them, and the open RIGGA rack runs along the in-push facing south, 30 in from the bed. A small nightstand stands at the head of the bed's open side; it leaves 14 in in front of the rack's east end. The bench sits across the foot of the bed. No ceiling light: a floor lamp stands in the window corner, a plug-in swing-arm sconce over the bed's head corner, just above the headboard, is the reading light, and your BÖJA, Mika and PELARBOJ lamps sit on the chest, the nightstand and the KALLAX. Tightest walkway is 27 in, between the bench and the window wall; the lamp sits at its dead end. The open rack is visible clutter.", [
     ["Bed", "bed", 43, 98, 86, 66, 24, 0, "E"], [BENCH, "ottoman", 27, 117, 16, 46, 18],
     ["PAX wardrobe 39 3/8, tall", "wardrobe", 0, 0, 39.375, 22.875, 93.125], ["KALLAX 1x4 shoe tower", "shoe", 39.375, 0, 15.375, 16.5, 57.875],
     ["MALM 6-drawer tall chest", "dresser", 0, 44, 18.875, 31.5, 48.375],
     ["RIGGA clothes rack", "rack", 85.25, 48, 43.75, 20.125, 68.875], ["Small nightstand, 1 drawer", "nightstand", 117, 82, 12, 16, 24], ["Jute rug 5'3 x 7'7", "rug", 36, 48, 90.5, 63, 0.5],
-    ["Floor lamp", "lamp", 1, 151, 12, 12, 64], ["Plug-in swing-arm sconce", "sconce", 125, 87, 4, 6, 12, 40], ["Mika cactus lamp (yours)", "lamp", 119, 86, 8, 8, 15, 24],
+    ["Floor lamp", "lamp", 1, 151, 12, 12, 64], ["Plug-in swing-arm sconce", "sconce", 125, 99, 4, 6, 12, 46], ["Mika cactus lamp (yours)", "lamp", 119, 86, 8, 8, 15, 24],
     ["BÖJA table lamp (yours)", "lamp", 4.5, 55, 9.75, 9.75, 9.5, 48.375], ["PELARBOJ glow lamp (yours)", "lamp", 44.75, 6, 4.5, 4.5, 4, 57.875],
     ["Yosemite panorama", "art", 128, 107, 1, 48, 30, 54], ["Park print", "art", 55, 163, 18, 1, 24, 50], ["Park print", "art", 77, 163, 18, 1, 24, 50], ["Park print", "art", 99, 163, 18, 1, 24, 50], ["Adire wall hanging", "textile", 128, 68.25, 1, 29.5, 40, 54], ["Framed topo map", "art", 0, 47.75, 1, 24, 24, 56], ["Summit photos", "art", 100, 48, 24, 1, 20, 72]]),
   layout("a1", "Corner bed, maximum storage", "most storage",
-    "Bed in the south-east corner. A tall PAX wardrobe in the north-west corner takes hanging clothes with the KALLAX shoe tower beside it, and a 63 in MALM dresser sits under the window and doubles as the nightstand. Bench stays at the foot. No ceiling light: a floor lamp stands in the corner north of the bed, a plug-in swing-arm sconce on the south wall lights the bed's open side, and your BÖJA and Mika lamps sit on the dresser with the PELARBOJ on the KALLAX. Main walkway is 51 in; the tightest spot is 24 in in front of the wardrobe doors. The bed is reachable from one side only and the north-west corner is furniture-heavy.", [
+    "Bed in the south-east corner. A tall PAX wardrobe in the north-west corner takes hanging clothes with the KALLAX shoe tower beside it, and a 63 in MALM dresser sits under the window and doubles as the nightstand. Bench stays at the foot. No ceiling light: a floor lamp stands in the corner north of the bed, a plug-in swing-arm sconce on the south wall, just above the headboard's open corner, is the reading light, and your BÖJA and Mika lamps sit on the dresser with the PELARBOJ on the KALLAX. Main walkway is 51 in; the tightest spot is 24 in in front of the wardrobe doors. The bed is reachable from one side only and the north-west corner is furniture-heavy.", [
     ["Bed", "bed", 63, 78, 66, 86, 24, 0, "S"], [BENCH, "ottoman", 64, 62, 46, 16, 18],
     ["PAX wardrobe 39 3/8, tall", "wardrobe", 0, 0, 39.375, 22.875, 93.125], ["MALM 6-drawer dresser", "dresser", 0, 145.125, 63, 18.875, 30.75],
     ["KALLAX 1x4 shoe tower", "shoe", 39.375, 0, 15.375, 16.5, 57.875], ["Hook rail", "other", 104, 48, 18.875, 3.5, 5.5, 62],
     ["Runner rug 30 x 84", "rug", 28, 55, 30, 84, 0.5],
-    ["Floor lamp", "lamp", 116, 53, 12, 12, 64], ["Plug-in swing-arm sconce", "sconce", 57, 160, 6, 4, 12, 46], ["BÖJA table lamp (yours)", "lamp", 51, 150, 9.75, 9.75, 9.5, 30.75],
+    ["Floor lamp", "lamp", 116, 53, 12, 12, 64], ["Plug-in swing-arm sconce", "sconce", 63, 160, 6, 4, 12, 46], ["BÖJA table lamp (yours)", "lamp", 51, 150, 9.75, 9.75, 9.5, 30.75],
     ["Mika cactus lamp (yours)", "lamp", 4, 150, 8, 8, 15, 30.75], ["PELARBOJ glow lamp (yours)", "lamp", 44.75, 6, 4.5, 4.5, 4, 57.875],
     ["Yosemite panorama", "art", 72, 163, 48, 1, 32, 54], ["Trip photo grid", "art", 8, 163, 48, 1, 28, 38], ["Adire wall hanging", "textile", 128, 90, 1, 30, 40, 48], ["Framed topo map", "art", 0, 53, 1, 24, 28, 44], ["Summit photo", "art", 40, 0, 14, 1, 20, 66]]),
   layout("a3", "Centred bed, both sides open", "two-sided bed",
-    "Bed stays almost where it is, so you can get in from either side: 38 in on the west (22 in beside the low chest under the window), 25 in on the east. Tall PAX in the north-west corner with the KALLAX shoe tower beside it, a narrow KULLEN 5-drawer chest south of the in-push, a low KULLEN 3-drawer chest under the window, a nightstand and a shelf over the headboard. No ceiling light: a pair of plug-in swing-arm sconces flank the headboard, a floor lamp stands on the west wall between the closet door and the window, and your BÖJA, Mika and PELARBOJ lamps sit on the tall chest, the nightstand and the KALLAX. Bench keeps its place at the foot. Tightest walkway is 22 in.", [
+    "Bed stays almost where it is, so you can get in from either side: 38 in on the west (22 in beside the low chest under the window), 25 in on the east. Tall PAX in the north-west corner with the KALLAX shoe tower beside it, a narrow KULLEN 5-drawer chest south of the in-push, a low KULLEN 3-drawer chest under the window, a nightstand and a shelf over the headboard. No ceiling light: a pair of plug-in swing-arm sconces sit just above the headboard's two corners, a floor lamp stands on the west wall between the closet door and the window, and your BÖJA, Mika and PELARBOJ lamps sit on the tall chest, the nightstand and the KALLAX. Bench keeps its place at the foot. Tightest walkway is 22 in.", [
     ["Bed", "bed", 38, 78, 66, 86, 24, 0, "S"], [BENCH, "ottoman", 39, 62, 46, 16, 18],
     ["PAX wardrobe 39 3/8, tall", "wardrobe", 0, 0, 39.375, 22.875, 93.125], ["KALLAX 1x4 shoe tower", "shoe", 39.375, 0, 15.375, 16.5, 57.875],
     ["KULLEN 5-drawer chest", "dresser", 113.25, 48, 15.75, 27.5, 44.125], ["KULLEN 3-drawer chest", "dresser", 0, 136.5, 15.75, 27.5, 28.375], ["MALM 2-drawer nightstand", "nightstand", 110.125, 148.25, 18.875, 15.75, 21.625],
     ["Wall shelf over bed", "other", 49, 153.75, 43.25, 10.25, 2, 60], ["Hook rail", "other", 0, 50, 3.5, 18.875, 5.5, 62],
     ["Rug 60 x 96", "rug", 14, 48, 96, 60, 0.5],
-    ["Floor lamp", "lamp", 1, 119, 12, 12, 64], ["Plug-in swing-arm sconce", "sconce", 31, 160, 6, 4, 12, 46], ["Plug-in swing-arm sconce", "sconce", 105, 160, 6, 4, 12, 46],
+    ["Floor lamp", "lamp", 1, 119, 12, 12, 64], ["Plug-in swing-arm sconce", "sconce", 38, 160, 6, 4, 12, 46], ["Plug-in swing-arm sconce", "sconce", 98, 160, 6, 4, 12, 46],
     ["BÖJA table lamp (yours)", "lamp", 116, 60, 9.75, 9.75, 9.5, 44.125], ["Mika cactus lamp (yours)", "lamp", 114, 152, 8, 8, 15, 21.625], ["PELARBOJ glow lamp (yours)", "lamp", 44.75, 6, 4.5, 4.5, 4, 57.875],
     ["Park print", "art", 52, 163, 18, 1, 22, 63], ["Park print", "art", 73, 163, 18, 1, 22, 63], ["Adire wall hanging", "textile", 128, 85, 1, 30, 45, 40], ["Framed topo map", "art", 0, 44, 1, 20, 28, 72], ["Summit photos", "art", 102, 48, 24, 1, 20, 50], ["Summit photo", "art", 40, 0, 14, 1, 20, 66]])
 ];
@@ -254,6 +254,89 @@ function inWardrobeSwing(it) {
   return it.solid && state.items.some(w => w !== it && it.z < w.z + w.h && wardrobeSwings(w).some(g => inQuarter(it, g)));
 }
 const isBad = it => outside(it) || blockers(it).length > 0 || inSwing(it) || inWardrobeSwing(it);
+
+/* ---------- light: an estimate of how bright each spot is with only the lamps on ---------- */
+// Lumens per light and the share its shade sends downward. Floor lamps and sconces take the
+// planned 1100 lm smart bulb (Tapo L535E); Femi's own small lamps are rough guesses.
+function lightSpec(it) {
+  const nm = it.name.toLowerCase();
+  if (it.lm > 0) return { lm: it.lm, down: it.down ?? 0.5 };
+  if (/pelarboj/.test(nm)) return { lm: 25, down: 0.5 };
+  if (/mika/.test(nm)) return { lm: 300, down: 0.5 };
+  if (/böja|boja/.test(nm)) return { lm: 450, down: 0.5 };
+  if (kindOf(it) === "sconce") return { lm: 1100, down: 0.8 };
+  if (it.z === 0 && it.h >= 40) return { lm: 1100, down: 0.45 };
+  return { lm: 800, down: 0.5 };
+}
+const LIGHT_STEP = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
+// Where each bulb sits: inside the shade, or just off the wall for a sconce.
+function lightSources(items) {
+  return items.filter(it => kindOf(it) === "lamp" || kindOf(it) === "sconce").map(it => {
+    const sconce = kindOf(it) === "sconce", [dx, dy] = sconce ? LIGHT_STEP[frontDir(it)] : [0, 0];
+    return { it, x: it.x + it.w / 2 + dx * 4, y: it.y + it.d / 2 + dy * 4,
+      z: sconce ? it.z + it.h * 0.7 : it.z + it.h - Math.min(it.h * 0.3, 10) / 2, ...lightSpec(it) };
+  });
+}
+const LUM_EFF = 0.85, REFLECT = 0.5, M_PER_IN = 0.0254;
+// Light straight from one bulb onto a face-up spot, in lux; nothing gets through a solid box.
+function directLux(src, px, py, pz, boxes) {
+  const dz = src.z - pz;
+  if (dz <= 0) return 0;
+  const dx = px - src.x, dy = py - src.y, d2 = (dx * dx + dy * dy + dz * dz) * M_PER_IN * M_PER_IN;
+  for (const b of boxes) if (segHitsBox(src.x, src.y, src.z, px, py, pz, b)) return 0;
+  return LUM_EFF * src.lm * src.down / (2 * Math.PI) * (dz * M_PER_IN / Math.sqrt(d2)) / d2;
+}
+function segHitsBox(x0, y0, z0, x1, y1, z1, b) {
+  let lo = 0.001, hi = 0.999;
+  for (const [a, e, mn, mx] of [[x0, x1 - x0, b.x, b.x + b.w], [y0, y1 - y0, b.y, b.y + b.d], [z0, z1 - z0, b.z, b.z + b.h]]) {
+    if (Math.abs(e) < 1e-9) { if (a <= mn || a >= mx) return false; continue; }
+    let t0 = (mn - a) / e, t1 = (mx - a) / e;
+    if (t0 > t1) [t0, t1] = [t1, t0];
+    lo = Math.max(lo, t0); hi = Math.min(hi, t1);
+    if (lo >= hi) return false;
+  }
+  return true;
+}
+// Light bounced off walls, ceiling and floor, spread evenly: the room as an integrating sphere.
+function bounceLux(sources) {
+  const { W, L, H } = state.room, area = (2 * W * L + 2 * (W + L) * H) * M_PER_IN * M_PER_IN;
+  return LUM_EFF * sources.reduce((s, l) => s + l.lm, 0) * REFLECT / (area * (1 - REFLECT));
+}
+function lightBoxes(items) {
+  const b = bumpRect(), out = b.w > 0 && b.d > 0 ? [{ ...b, z: 0, h: state.room.H }] : [];
+  for (const it of items) if (it.solid && kindOf(it) !== "lamp" && kindOf(it) !== "sconce") out.push(...parts(it));
+  return out;
+}
+const READ_LUX = 300, ROOM_LUX = 50;
+// Lux over a face-up plane (default 30 in, about where a book or a folded shirt is), the bed's
+// reading spots, and the room's average and darkest tenth. Spots under furniture taller than the
+// plane, or in the in-push, are left blank.
+function lightReport(items, pz = 30, step = 3) {
+  const { W, L } = state.room, src = lightSources(items), boxes = lightBoxes(items), bounce = bounceLux(src);
+  const at = (x, y, z) => bounce + src.reduce((s, l) => s + directLux(l, x, y, z, boxes), 0);
+  const cols = Math.floor(W / step), rows = Math.floor(L / step), vals = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const x = (c + 0.5) * step, y = (r + 0.5) * step;
+    const covered = boxes.some(b => x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.d && b.z <= pz && b.z + b.h > pz);
+    vals.push(covered ? null : at(x, y, pz));
+  }
+  const open = vals.filter(v => v !== null).sort((a, b) => a - b);
+  const bed = items.find(i => kindOf(i) === "bed"), reading = [];
+  if (bed) {
+    const prev = state.items; state.items = items;
+    const c = clearances(bed), head = bed.headSide, along = head === "N" || head === "S";
+    state.items = prev;
+    const into = { N: 1, S: -1, W: 1, E: -1 }[head], line = { N: bed.y, S: bed.y + bed.d, W: bed.x, E: bed.x + bed.w }[head];
+    const sides = along ? [["W", bed.x, 1], ["E", bed.x + bed.w, -1]] : [["N", bed.y, 1], ["S", bed.y + bed.d, -1]];
+    for (const [side, edge, inward] of sides) if (c[side] > state.room.flush) {
+      const a = edge + inward * 10, b = line + into * 14, z = bed.h + 8;
+      const [x, y] = along ? [a, b] : [b, a];
+      reading.push({ side, x, y, z, lux: at(x, y, z) });
+    }
+  }
+  return { map: { step, cols, rows, vals, pz }, reading, bounce,
+    avg: open.reduce((s, v) => s + v, 0) / Math.max(open.length, 1), p10: open[Math.floor(open.length * 0.1)] ?? 0 };
+}
 // Position along a wall as seen from inside the room, left to right.
 function alongWall(wall, start, size) {
   const r = state.room;

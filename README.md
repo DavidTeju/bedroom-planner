@@ -5,8 +5,22 @@ A planner for Femi's San Francisco bedroom, built from his own measurements. Inc
 - **Live:** https://bedroom.davidteju.dev (3D) and https://bedroom.davidteju.dev/plan.html (2D)
 - **3D view** (`site/index.html`): a three.js scene with modelled furniture. Drag a piece to move
   it, Shift-drag to raise or lower it, R rotates, arrow keys nudge, click a door to open it, and
-  the toolbar switches between the 3D, top, wall and standing-inside views.
+  the toolbar switches between the 3D, top, wall and standing-inside views. **Lamps only**
+  turns off daylight and the ceiling fixture and lights each lamp and sconce.
 - **2D plan** (`site/plan.html`): floor plan plus the four walls seen from inside.
+  **Light map, lamps only** overlays the lighting estimate.
+
+## Lighting estimate
+
+Femi doesn't use ceiling lights, so `lightReport()` in `core.js` estimates lux with only the
+lamps on, on a face-up plane 30 in off the floor, plus each bed reading spot (10 in in from an
+open edge, 14 in from the head, 8 in above the mattress). Direct light follows the inverse-square
+and cosine laws from each bulb, with each shade sending a set share downward and solid furniture
+casting shadows. Light bounced off the room is added evenly, treating the room as an integrating
+sphere with 50% average reflectance and 85% luminaire efficiency. The floor lamp and sconces
+assume the planned 1100 lm smart bulb; Femi's own small lamps are guesses. The targets in the
+tests are 300 lux at each reading spot and a 50 lux room average. It is an estimate for
+comparing layouts, not a photometric survey.
 
 Both pages share `site/core.js` and `site/core.css`: the measured room, the ready-made layouts,
 saved state, the collision and door-swing rules, and the sidebar. They read and write the same
@@ -33,7 +47,7 @@ npm test
 ```
 
 The tests load `site/core.js` in Node and cover the facing and rotation rules, the ready-made
-layouts and the bench.
+layouts, the bench and the lighting estimate.
 
 ## Deploy
 
