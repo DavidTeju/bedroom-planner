@@ -129,3 +129,10 @@ test("every piece in every ready-made layout resolves to a compass facing", () =
   assert.ok(faces.length > 30);
   for (const f of faces) assert.match(f, /^[NESW]$/);
 });
+
+test("every ready-made layout puts the same KALLAX shoe tower beside the PAX", () => {
+  const run = loadCore();
+  const shoes = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => p.items.filter(i => i.kind === "shoe").map(i => [i.name, i.x, i.y, i.w, i.d, i.h])))`));
+  const tower = [["KALLAX 1x4 shoe tower", 39.375, 0, 15.375, 16.5, 57.875]];
+  assert.deepEqual(shoes, [tower, tower, tower]);
+});
