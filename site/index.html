@@ -50,7 +50,7 @@
       <button data-view="S">South wall</button><button data-view="W">West wall</button>
       <button data-view="inside">Stand inside</button><i></i>
       <button id="wallBtn"></button>
-      <button data-toggle="grid">Grid</button><button data-toggle="swings">Door swings</button><button data-toggle="names">Names</button><button data-toggle="lamps">Lamps only</button>
+      <button data-toggle="grid">Grid</button><button data-toggle="swings">Door swings</button><button data-toggle="names">Names</button><button data-toggle="lamps">Lamps only</button><button data-toggle="lightmap">Light map</button>
     </div>
     <p id="help">Drag a piece to move it · Shift-drag to raise or lower it · drag empty space to orbit · scroll to zoom · right-drag to pan · click a door to open it</p>
     <div id="tip" hidden></div>
@@ -633,12 +633,12 @@ function buildItem(it, face) {
 /* ---------- room ---------- */
 const roomG = new THREE.Group(), itemsG = new THREE.Group(), pickG = new THREE.Group(), overlayG = new THREE.Group();
 const gridG = new THREE.Group(), swingG = new THREE.Group(), ceilingG = new THREE.Group();
-const lampG = new THREE.Group();
-scene.add(roomG, itemsG, pickG, overlayG, lampG);
+const lampG = new THREE.Group(), luxG = new THREE.Group();
+scene.add(roomG, itemsG, pickG, overlayG, lampG, luxG);
 const WALL_T = 4.5;
 let wallSegs = [], doorLeaves = [], doorPivots = [];
 const doorOpen = {}; // opening id -> { t: how far open, 0..1, want: 0 or 1 }
-const show = { grid: false, swings: true, names: false, lamps: false };
+const show = { grid: false, swings: true, names: false, lamps: false, lightmap: false };
 let wallMode = "auto";
 
 const floorMat = new THREE.MeshStandardMaterial({ roughness: 0.55, map: (() => {
@@ -818,6 +818,35 @@ function lamplight() {
   }
 }
 
+/* ---------- light map: the core's lamps-only lux estimate, painted on the floor ---------- */
+let luxKey = "", luxTimer = 0;
+function luxMap() {
+  if (!show.lightmap) { luxKey = ""; wipe(luxG); return; }
+  const key = JSON.stringify([state.room, state.items]);
+  if (key === luxKey) return;
+  luxKey = key;
+  // a layout being dragged settles before the estimate reruns
+  clearTimeout(luxTimer);
+  luxTimer = setTimeout(() => {
+    const r = lightReport(state.items), m = r.map, { W, L } = state.room;
+    wipe(luxG);
+    const tex = canvasTex(m.cols, m.rows, g => m.vals.forEach((v, k) => {
+      if (v === null) return;
+      g.fillStyle = luxColor(v);
+      g.fillRect(k % m.cols, Math.floor(k / m.cols), 1, 1);
+    }));
+    tex.magFilter = THREE.NearestFilter;
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(m.cols * m.step, m.rows * m.step),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.82, depthWrite: false, toneMapped: false }));
+    plane.rotation.x = -Math.PI / 2;
+    plane.position.set(m.cols * m.step / 2, 0.35, m.rows * m.step / 2);
+    plane.renderOrder = 2;
+    luxG.add(plane);
+    for (const s of r.reading) luxG.add(tag(`${Math.round(s.lux)} lux`, s.lux >= READ_LUX ? "gap" : "bad", s.x, s.z, s.y));
+    luxG.add(tag(`room average ${Math.round(r.avg)} lux · darkest tenth ${Math.round(r.p10)} · at 30″`, "compass", W / 2, 0, -18));
+  }, 120);
+}
+
 /* ---------- keeping the scene in step with the layout ---------- */
 const built = new Map(); // item id -> { key, group }
 let roomKey = "";
@@ -858,6 +887,7 @@ function sync() {
   }
   for (const [id, b] of built) if (!seen.has(id)) { wipe(b.group); itemsG.remove(b.group); built.delete(id); }
   lamplight();
+  luxMap();
 
   wipe(pickG); wipe(overlayG);
   for (const it of state.items) {

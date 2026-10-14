@@ -6,7 +6,8 @@ A planner for Femi's San Francisco bedroom, built from his own measurements. Inc
 - **3D view** (`site/index.html`): a three.js scene with modelled furniture. Drag a piece to move
   it, Shift-drag to raise or lower it, R rotates, arrow keys nudge, click a door to open it, and
   the toolbar switches between the 3D, top, wall and standing-inside views. **Lamps only**
-  turns off daylight and the ceiling fixture and lights each lamp and sconce.
+  turns off daylight and the ceiling fixture and lights each lamp and sconce. **Light map** paints
+  the lighting estimate on the floor and labels each bed reading spot.
 - **2D plan** (`site/plan.html`): floor plan plus the four walls seen from inside.
   **Light map, lamps only** overlays the lighting estimate.
 
@@ -18,7 +19,7 @@ open edge, 14 in from the head, 8 in above the mattress). Direct light follows t
 and cosine laws from each bulb, with each shade sending a set share downward and solid furniture
 casting shadows. Light bounced off the room is added evenly, treating the room as an integrating
 sphere with 50% average reflectance and 85% luminaire efficiency. The floor lamp and sconces
-assume the planned 1100 lm smart bulb; Femi's own small lamps are guesses. The targets in the
+assume Femi's Tapo L535E smart bulb (1100 lm, E26); Femi's own small lamps are guesses. The targets in the
 tests are 300 lux at each reading spot and a 50 lux room average. It is an estimate for
 comparing layouts, not a photometric survey.
 

@@ -252,3 +252,13 @@ test("the 2D plan can overlay the lamps-only light map", () => {
   assert.match(html, /id="lightBtn"/);
   assert.match(html, /lightReport\(state\.items\)/);
 });
+
+test("the 3D view can paint the lamps-only light map on the floor, in the core's colours", () => {
+  const run = loadCore();
+  assert.equal(run(`luxColor(10)`), "#1f2a44");
+  assert.equal(run(`luxColor(1000)`), "#fff6d6");
+  const html = read("index.html");
+  assert.match(html, /data-toggle="lightmap"/);
+  assert.match(html, /lightReport\(state\.items/);
+  assert.doesNotMatch(read("plan.html"), /function luxColor/, "the 2D plan uses the shared colours");
+});

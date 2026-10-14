@@ -256,8 +256,8 @@ function inWardrobeSwing(it) {
 const isBad = it => outside(it) || blockers(it).length > 0 || inSwing(it) || inWardrobeSwing(it);
 
 /* ---------- light: an estimate of how bright each spot is with only the lamps on ---------- */
-// Lumens per light and the share its shade sends downward. Floor lamps and sconces take the
-// planned 1100 lm smart bulb (Tapo L535E); Femi's own small lamps are rough guesses.
+// Lumens per light and the share its shade sends downward. Floor lamps and sconces take Femi's
+// Tapo L535E smart bulb (1100 lm, E26, 2500-6500K); his own small lamps are rough guesses.
 function lightSpec(it) {
   const nm = it.name.toLowerCase();
   if (it.lm > 0) return { lm: it.lm, down: it.down ?? 0.5 };
@@ -306,6 +306,14 @@ function lightBoxes(items) {
   const b = bumpRect(), out = b.w > 0 && b.d > 0 ? [{ ...b, z: 0, h: state.room.H }] : [];
   for (const it of items) if (it.solid && kindOf(it) !== "lamp" && kindOf(it) !== "sconce") out.push(...parts(it));
   return out;
+}
+// Lamps-only lux, dark navy at 10 lux or less to pale yellow at 1000.
+const LUX_STOPS = ["#1f2a44", "#6b4f7a", "#d9825b", "#ffd36b", "#fff6d6"];
+function luxColor(v) {
+  const t = Math.min(Math.max(Math.log10(Math.max(v, 1) / 10) / 2, 0), 1) * (LUX_STOPS.length - 1), i = Math.min(Math.floor(t), LUX_STOPS.length - 2), f = t - i;
+  const mix = (a, b) => Math.round(parseInt(a, 16) * (1 - f) + parseInt(b, 16) * f).toString(16).padStart(2, "0");
+  const a = LUX_STOPS[i], b = LUX_STOPS[i + 1];
+  return "#" + [1, 3, 5].map(k => mix(a.slice(k, k + 2), b.slice(k, k + 2))).join("");
 }
 const READ_LUX = 300, ROOM_LUX = 50;
 // Lux over a face-up plane (default 30 in, about where a book or a folded shirt is), the bed's
