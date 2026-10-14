@@ -1,0 +1,48 @@
+/* Shared by plan.html and index.html: page frame, cards, forms and lists. */
+:root {
+  color-scheme: light;
+  --bg: #f4f2ec; --panel: #fffdf8; --ink: #20242a; --muted: #6b7280; --line: #d9d5c9;
+  --grid: #e6e2d6; --floor: #fbf9f3; --wall: #20242a; --bump: #cfcabb;
+  --door: #c2622d; --closet: #8a5cc2; --window: #2389b8; --accent: #1f6feb; --warn: #d1242f;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); height: 100vh; max-width: 100vw; overflow: hidden;
+  display: flex; flex-direction: column;
+  font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+header { flex: none; padding: 10px 16px 4px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+h1 { font-size: 18px; margin: 0; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; }
+header p { margin: 0; color: var(--muted); font-size: 13px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+aside { display: grid; gap: 12px; align-content: start; min-height: 0; overflow-y: auto; padding-right: 2px; }
+label { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
+label.check { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+label.check input { width: auto; }
+input, select, button { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 7px; min-width: 0; width: 100%; }
+input[type=color] { padding: 1px; height: 30px; }
+button { cursor: pointer; width: auto; }
+button:hover { border-color: var(--accent); }
+button.armed { border-color: var(--warn); color: var(--warn); }
+.row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+.row.two { grid-template-columns: 1fr 1fr; }
+.btns { display: flex; flex-wrap: wrap; gap: 6px; }
+ul.plans { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 4px; }
+ul.plans li { display: flex; gap: 8px; align-items: center; padding: 5px 8px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
+ul.plans li:hover { border-color: var(--line); }
+ul.plans li.cur { border-color: var(--accent); }
+ul.plans li.armed { border-color: var(--warn); color: var(--warn); }
+ul.plans small { color: var(--muted); margin-left: auto; white-space: nowrap; }
+ul.plans .x { border: none; background: none; padding: 0 4px; color: var(--muted); }
+.sub { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 8px 0 4px; }
+ul#list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+ul#list li { display: flex; gap: 8px; align-items: center; padding: 5px 8px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
+ul#list li:hover { border-color: var(--line); }
+ul#list li.sel { border-color: var(--accent); }
+.sw { width: 12px; height: 12px; border-radius: 3px; flex: none; border: 1px solid var(--ink); }
+ul#list small { color: var(--muted); margin-left: auto; white-space: nowrap; }
+details summary { cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+details[open] summary { margin-bottom: 10px; }
+.opbox { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+.hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }

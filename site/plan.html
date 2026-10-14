@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bedroom planner</title>
+<link rel="stylesheet" href="core.css">
+<style>
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; padding: 6px 16px 12px; }
+  @media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); } }
+  .left { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
+  .view { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .view h2 { flex: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .view svg { flex: 1; min-height: 0; width: 100%; height: 100%; display: block; user-select: none; }
+  #main { flex: 1; min-height: 0; display: flex; }
+  #main .view { flex: 1; }
+  #main .view svg { touch-action: none; }
+  #thumbs { flex: none; height: 150px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  #thumbs .view { cursor: pointer; padding: 6px 8px; }
+  #thumbs .view:hover { border-color: var(--accent); }
+  #thumbs .view svg { pointer-events: none; }
+  #thumbs h2 { font-size: 11px; margin-bottom: 2px; }
+  .legend { flex: none; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--muted); align-items: center; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 22px; height: 12px; display: inline-block; background: #7c93c4; border: 2px solid var(--ink); }
+  .legend i.near { opacity: .55; border: 1.5px dashed var(--ink); }
+  .legend i.far { background: transparent; border: 1px dotted var(--muted); }
+  svg text { font-family: inherit; fill: var(--ink); }
+  .t-muted { fill: var(--muted); }
+  .floor { fill: var(--floor); }
+  .gridline { stroke: var(--grid); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .wall { fill: none; stroke: var(--wall); stroke-width: 3; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+  .bump { fill: var(--bump); }
+  .dim { stroke: var(--muted); stroke-width: 1; vector-effect: non-scaling-stroke; fill: none; }
+  .op { stroke-width: 7; vector-effect: non-scaling-stroke; stroke-linecap: butt; }
+  .door { stroke: var(--door); } .closet { stroke: var(--closet); } .window { stroke: var(--window); }
+  .f-door { fill: var(--door); } .f-closet { fill: var(--closet); } .f-window { fill: var(--window); }
+  .item { stroke: var(--ink); stroke-width: 1; vector-effect: non-scaling-stroke; fill-opacity: .6; cursor: grab; }
+  .item.sel { stroke: var(--accent); stroke-width: 2.5; }
+  .item.bad { stroke: var(--warn); stroke-width: 2.5; stroke-dasharray: 4 3; }
+  .headstrip { fill: var(--ink); fill-opacity: .4; }
+  .deco { fill: none; stroke: var(--ink); stroke-opacity: .5; stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .deco-fill { fill: #fff; fill-opacity: .6; stroke: var(--ink); stroke-opacity: .5; stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .deco-dark { fill: var(--ink); fill-opacity: .55; stroke: none; }
+  .gap { stroke: var(--floor); stroke-width: 7; vector-effect: non-scaling-stroke; }
+  .jamb { stroke: var(--wall); stroke-width: 3; vector-effect: non-scaling-stroke; }
+  .glass { fill: #cfe8f5; stroke: var(--window); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+  .frame { fill: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; }
+  .pane { stroke: var(--window); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+  .ev { stroke: var(--ink); vector-effect: non-scaling-stroke; cursor: grab; }
+  .ev.flush { fill-opacity: .92; stroke-width: 2; }
+  .ev.near { fill-opacity: .38; stroke-width: 1.2; stroke-dasharray: 6 3; }
+  .ev.far { fill-opacity: .04; stroke-width: 1; stroke-opacity: .3; stroke-dasharray: 2 4; }
+  .ev.sel { stroke: var(--accent); stroke-opacity: 1; stroke-width: 2.5; }
+  .lab-far { fill: var(--muted); opacity: .55; }
+  .swing { stroke-width: 1.5; vector-effect: non-scaling-stroke; fill-opacity: .08; stroke-dasharray: 5 3; }
+  .leaf { stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+  .clear { stroke: var(--accent); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 3 3; }
+  .clear-t { fill: var(--accent); font-weight: 600; }
+  @media print { body { height: auto; overflow: visible; } aside, header p { display: none; } main { grid-template-columns: 1fr; } #main { height: 150mm; } .card { border: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bedroom planner</h1>
+  <p>Inches throughout. Click a small view to enlarge it; drag furniture in the big one. <a href="./">Open the 3D view</a></p>
+</header>
+<main>
+  <div class="left">
+    <div id="main"></div>
+    <div class="legend" id="legend"></div>
+    <div id="thumbs"></div>
+  </div>
+  <aside id="side"></aside>
+</main>
+<script src="core.js"></script>
+<script>
+"use strict";
+const VIEWS = ["plan", "N", "E", "S", "W"];
+let mainView = "plan";
+
+const box = (x, y, w, h, cls = "deco", rx = 0) => w > 0 && h > 0 ? `<rect class="${cls}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}"/>` : "";
+const seg = (x1, y1, x2, y2, cls = "deco") => `<line class="${cls}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+// Top-down detail drawn over a piece's footprint.
+function planDeco(it) {
+  const k = kindOf(it), { x, y, w, d } = it;
+  let g = "";
+  if (k === "bed") {
+    // drawn head-up in its own frame, then turned to face the headboard side
+    const side = it.headSide, across = side === "N" || side === "S" ? w : d, along = side === "N" || side === "S" ? d : w;
+    const t = it.headH > 0 ? Math.min(it.headT, along) : 0;
+    const tf = { N: `translate(${x} ${y})`, S: `translate(${x + w} ${y + d}) rotate(180)`, E: `translate(${x + w} ${y}) rotate(90)`, W: `translate(${x} ${y + d}) rotate(-90)` }[side];
+    const pw = (across - 9) / 2;
+    g += `<g transform="${tf}">` + box(0, 0, across, t, "deco-dark")
+      + box(3, t + 3, pw, 15, "deco-fill", 3) + box(6 + pw, t + 3, pw, 15, "deco-fill", 3)
+      + box(1.5, t + 24, across - 3, along - t - 25.5, "deco-fill", 2) + seg(1.5, t + 32, across - 1.5, t + 32) + `</g>`;
+  } else {
+    const hb = parts(it)[1];
+    if (hb) g += box(hb.x, hb.y, hb.w, hb.d, "headstrip");
+    const longX = w >= d;
+    if (k === "rug") g += box(x + 3, y + 3, w - 6, d - 6) + box(x + 6, y + 6, w - 12, d - 12);
+    else if (k === "wardrobe") g += box(x + 1, y + 1, w - 2, d - 2) + seg(x + 1, y + 1, x + w - 1, y + d - 1) + seg(x + w - 1, y + 1, x + 1, y + d - 1);
+    else if (k === "rack") {
+      g += longX ? seg(x + 2, y + d / 2, x + w - 2, y + d / 2) : seg(x + w / 2, y + 2, x + w / 2, y + d - 2);
+      for (let a = 5; a < (longX ? w : d) - 3; a += 5) g += longX ? seg(x + a, y + 2, x + a + 1.5, y + d - 2) : seg(x + 2, y + a, x + w - 2, y + a + 1.5);
+    } else if (k === "ottoman") {
+      // lid edge and the two staggered rows of tufting buttons
+      const along = longX ? w : d, across = longX ? d : w, cols = Math.max(2, Math.round(along / 6.5));
+      const dot = (a, b) => { const px = longX ? x + a : x + b, py = longX ? y + b : y + a; return `<circle class="deco-dark" cx="${px}" cy="${py}" r="0.7"/>`; };
+      g += box(x + 1.2, y + 1.2, w - 2.4, d - 2.4);
+      for (let i = 0; i < cols; i++) g += dot(along * (i + 1) / (cols + 1), across / 3);
+      for (let i = 0; i < cols - 1; i++) g += dot(along * (i + 1.5) / (cols + 1), across * 2 / 3);
+    } else if (k === "bench") {
+      for (let a = 1; a < 4; a++) g += longX ? seg(x + 1, y + d * a / 4, x + w - 1, y + d * a / 4) : seg(x + w * a / 4, y + 1, x + w * a / 4, y + d - 1);
+    } else if (k === "chair") g += box(x + 5, y + 5, w - 10, d - 10, "deco-fill", 4);
+    else if (k === "plant" || k === "lamp") g += `<circle class="deco-fill" cx="${x + w / 2}" cy="${y + d / 2}" r="${Math.min(w, d) / 2 - 1}"/>`;
+    else if (k === "dresser" || k === "nightstand" || k === "shoe" || k === "shelf") g += box(x + 1.2, y + 1.2, w - 2.4, d - 2.4);
+  }
+  return `<g pointer-events="none">${g}</g>`;
+}
+// Front-on detail drawn over a piece in a wall view. (x, y) is its top-left there.
+function elevDeco(p, x, y, w, h) {
+  const k = kindOf(p.it);
+  let g = "";
+  const fronts = (rows, cols, handle) => {
+    const ch = (h - 2) / rows, cw = (w - 2) / cols;
+    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+      const fx = x + 1 + c * cw, fy = y + 1 + r * ch;
+      g += box(fx + 0.5, fy + 0.5, cw - 1, ch - 1);
+      if (handle === "knob") g += `<circle class="deco-dark" cx="${fx + cw / 2}" cy="${fy + ch / 2}" r="0.9"/>`;
+      if (handle === "pull") g += seg(fx + cw * 0.3, fy + 2.2, fx + cw * 0.7, fy + 2.2);
+    }
+  };
+  if (p.head) g += box(x + 2, y + 2, w - 4, h - 3, "deco", 3);
+  else if (k === "bed") g += box(x, y, w, h * 0.42, "deco-fill", 2) + seg(x, y + h * 0.42, x + w, y + h * 0.42);
+  else if (k === "dresser" && h > 8 && w > 8) fronts(clamp(Math.round(h / 9), 2, 7), w > 44 ? 2 : 1, "knob");
+  else if (k === "nightstand" && h > 8 && w > 8) fronts(clamp(Math.round(h / 11), 1, 3), 1, "knob");
+  else if (k === "shoe" && h > 8 && w > 8) fronts(clamp(Math.round(h / 16), 1, 4), 1, "pull");
+  else if (k === "wardrobe" && w > 8) {
+    const doors = Math.max(1, Math.round(w / 20)), dw = (w - 2) / doors;
+    for (let i = 0; i < doors; i++) g += box(x + 1.5 + i * dw, y + 1.5, dw - 1, h - 3) + seg(x + 1 + (i + (i % 2 ? 0.15 : 0.85)) * dw, y + h * 0.45, x + 1 + (i + (i % 2 ? 0.15 : 0.85)) * dw, y + h * 0.55);
+  } else if (k === "rack" && h > 20) {
+    g += seg(x + 1.5, y, x + 1.5, y + h) + seg(x + w - 1.5, y, x + w - 1.5, y + h) + seg(x + 1.5, y + 2, x + w - 1.5, y + 2);
+    for (let a = 4, i = 0; a < w - 7; a += 4.6, i++) g += box(x + a, y + 3.5, 3.6, h * 0.42 + (i % 3) * 4, "deco-fill", 1);
+  } else if (k === "shelf" && h > 20) {
+    for (let a = 12; a < h - 4; a += 12) g += seg(x + 1, y + a, x + w - 1, y + a);
+    g += box(x + 1, y + 1, w - 2, h - 2);
+  } else if (k === "ottoman" && h > 6) g += seg(x, y + 4.5, x + w, y + 4.5) + box(x + 1.5, y + h - 1.6, 2, 1.6, "deco-dark") + box(x + w - 3.5, y + h - 1.6, 2, 1.6, "deco-dark");
+  else if (k === "bench" && h > 6) g += seg(x, y + 3, x + w, y + 3) + seg(x + 3, y + 3, x + 3, y + h) + seg(x + w - 3, y + 3, x + w - 3, y + h);
+  else if (k === "chair" && h > 12) g += seg(x, y + h * 0.55, x + w, y + h * 0.55) + box(x + 3, y + 2, w - 6, h * 0.55 - 4, "deco", 3);
+  else if (k === "art" && w > 6) {
+    // frame, mat, and a small ridge-and-sun picture
+    const ix = x + 3, iy = y + 3, iw = w - 6, ih = h - 6;
+    g += box(x + 0.8, y + 0.8, w - 1.6, h - 1.6) + box(ix, iy, iw, ih, "deco-fill");
+    if (iw > 6 && ih > 6) g += `<polyline class="deco" points="${ix},${iy + ih} ${ix + iw * 0.3},${iy + ih * 0.4} ${ix + iw * 0.48},${iy + ih * 0.7} ${ix + iw * 0.68},${iy + ih * 0.3} ${ix + iw},${iy + ih}"/><circle class="deco" cx="${ix + iw * 0.82}" cy="${iy + ih * 0.22}" r="${Math.min(iw, ih) * 0.08}"/>`;
+  } else if (k === "textile" && w > 6) {
+    g += seg(x - 1.5, y + 0.6, x + w + 1.5, y + 0.6);
+    for (let a = 3; a < w - 1; a += 3) g += `<line class="deco" stroke="#fff" x1="${x + a}" y1="${y + 2}" x2="${x + a}" y2="${y + h - 4}" style="stroke:#fff;stroke-opacity:.7"/>`;
+    for (let b = 6; b < h - 5; b += 6) g += `<line x1="${x + 1}" y1="${y + b}" x2="${x + w - 1}" y2="${y + b}" class="deco" style="stroke:#fff;stroke-opacity:.45"/>`;
+    for (let a = 1; a < w; a += 1.5) g += seg(x + a, y + h, x + a, y + h + 2.5);
+  } else if (k === "pegs" && w > 6) {
+    g += box(x, y, w, 2.2, "deco-dark");
+    for (let a = 3, i = 0; a < w - 2; a += 4.5, i++) g += `<circle class="deco-dark" cx="${x + a}" cy="${y + 1.1}" r="0.7"/>` + (i % 2 ? `<ellipse class="deco" cx="${x + a}" cy="${y + 2.2 + h * 0.3}" rx="1.3" ry="${h * 0.3}"/>` : seg(x + a, y + 2.2, x + a, y + h * 0.9) + `<circle class="deco" cx="${x + a}" cy="${y + h * 0.9}" r="1.2"/>`);
+  } else if (k === "mirror" && w > 6) g += box(x + 1.5, y + 1.5, w - 3, h - 3, "deco-fill") + seg(x + w * 0.25, y + h * 0.3, x + w * 0.6, y + h * 0.1) + seg(x + w * 0.4, y + h * 0.45, x + w * 0.75, y + h * 0.25);
+  return `<g pointer-events="none">${g}</g>`;
+}
+// A door or window cut into the wall line on the plan.
+function planOpening(o, sg) {
+  let g = seg(sg.x1, sg.y1, sg.x2, sg.y2, "gap");
+  // short ticks across the wall at each jamb
+  const tx = sg.ny ? 0 : 1.6, ty = sg.ny ? 1.6 : 0;
+  g += seg(sg.x1 - tx, sg.y1 - ty, sg.x1 + tx, sg.y1 + ty, "jamb") + seg(sg.x2 - tx, sg.y2 - ty, sg.x2 + tx, sg.y2 + ty, "jamb");
+  if (o.kind === "window") g += seg(sg.x1 - tx * 0.6, sg.y1 - ty * 0.6, sg.x2 - tx * 0.6, sg.y2 - ty * 0.6, "pane") + seg(sg.x1 + tx * 0.6, sg.y1 + ty * 0.6, sg.x2 + tx * 0.6, sg.y2 + ty * 0.6, "pane");
+  else if (!swingGeom(o)) g += seg(sg.x1, sg.y1, sg.x2, sg.y2, "leaf " + o.kind);
+  return `<g pointer-events="none">${g}</g>`;
+}
+// A door or window drawn front-on in a wall view. u is its left edge, yTop its top.
+function elevOpening(o, u, yTop, wall) {
+  const w = o.w, h = o.h;
+  let g = `<rect class="frame ${o.kind}" x="${u}" y="${yTop}" width="${w}" height="${h}"/>`;
+  if (o.kind === "window") {
+    g += box(u + 2, yTop + 2, w - 4, h - 4, "glass") + seg(u + 2, yTop + h / 2, u + w - 2, yTop + h / 2, "pane") + seg(u + w / 2, yTop + 2, u + w / 2, yTop + h - 2, "pane");
+    g += `<rect class="frame window" x="${u - 2}" y="${yTop + h}" width="${w + 4}" height="1.8"/>`;
+  } else {
+    const leaf = `fill="var(--${o.kind})" fill-opacity=".16" stroke="var(--${o.kind})" stroke-width="1.2" vector-effect="non-scaling-stroke"`;
+    g += `<rect ${leaf} x="${u + 2}" y="${yTop + 2}" width="${w - 4}" height="${h - 2}"/>`;
+    const pw = w - 14, ph = (h - 22) / 2;
+    if (pw > 6 && ph > 6) g += `<rect ${leaf} x="${u + 7}" y="${yTop + 8}" width="${pw}" height="${ph}"/><rect ${leaf} x="${u + 7}" y="${yTop + 13 + ph}" width="${pw}" height="${ph}"/>`;
+    // handle on the side away from the hinge
+    const hingeLeft = o.hinge === "none" ? true : alongWall(wall, o.hinge === "start" ? o.off : o.off + o.w, 0) <= u + 0.01;
+    g += `<circle fill="var(--${o.kind})" cx="${hingeLeft ? u + w - 4.5 : u + 4.5}" cy="${yTop + h - 36}" r="1.5"/>`;
+  }
+  return `<g pointer-events="none">${g}</g>`;
+}
+
+/* ---------- plan ---------- */
+function planSvg() {
+  const { W, L, bx, by } = state.room, P = 30;
+  const poly = `0,0 ${W - bx},0 ${W - bx},${by} ${W},${by} ${W},${L} 0,${L}`;
+  let g = `<defs><clipPath id="roomClip"><polygon points="${poly}"/></clipPath></defs>`;
+  g += `<rect class="bump" x="${W - bx}" y="0" width="${bx}" height="${by}"/>`;
+  g += `<polygon class="floor" points="${poly}"/>`;
+  g += `<g clip-path="url(#roomClip)" pointer-events="none">`;
+  for (let x = 12; x < W; x += 12) g += `<line class="gridline" x1="${x}" y1="0" x2="${x}" y2="${L}"/>`;
+  for (let y = 12; y < L; y += 12) g += `<line class="gridline" x1="0" y1="${y}" x2="${W}" y2="${y}"/>`;
+  g += `</g>`;
+  if (bx > 0 && by > 0) {
+    g += `<text class="t-muted" x="${W - bx / 2}" y="${by / 2 - 1}" font-size="3.6" text-anchor="middle">in-push</text>`;
+    g += `<text class="t-muted" x="${W - bx / 2}" y="${by / 2 + 4}" font-size="3.6" text-anchor="middle">${n(bx)} × ${n(by)}</text>`;
+  }
+  // rugs and other non-solid pieces go underneath
+  for (const it of [...state.items].sort((a, b) => a.solid - b.solid)) {
+    const cls = "item" + (it.id === selId ? " sel" : "") + (isBad(it) ? " bad" : "");
+    g += `<rect class="${cls}" data-id="${it.id}" x="${it.x}" y="${it.y}" width="${it.w}" height="${it.d}" rx="1" fill="${esc(it.color)}"/>`;
+    g += planDeco(it);
+    if (Math.min(it.w, it.d) >= 9) {
+      // tall narrow footprints get their label turned to run along them
+      const turn = it.d > it.w && it.w < 34, cx = it.x + it.w / 2, cy = it.y + it.d / 2;
+      g += `<g pointer-events="none" transform="translate(${cx} ${cy})${turn ? " rotate(-90)" : ""}"><text y="0" font-size="4" text-anchor="middle" font-weight="600">${esc(it.name)}</text>`;
+      if ((turn ? it.w : it.d) >= 16) g += `<text class="t-muted" y="5" font-size="3.4" text-anchor="middle">${n(it.w)} × ${n(it.d)}</text>`;
+      g += `</g>`;
+    }
+  }
+  g += `<polygon class="wall" points="${poly}" pointer-events="none"/>`;
+  for (const o of state.openings) {
+    const sg = opSeg(o), mid = o.off + o.w / 2, sw = swingGeom(o);
+    if (sw) {
+      const cross = (sw.fx - sw.hx) * (sw.oy - sw.hy) - (sw.fy - sw.hy) * (sw.ox - sw.hx);
+      g += `<path class="swing ${o.kind} f-${o.kind}" pointer-events="none" d="M${sw.hx} ${sw.hy}L${sw.fx} ${sw.fy}A${sw.r} ${sw.r} 0 0 ${cross > 0 ? 1 : 0} ${sw.ox} ${sw.oy}Z"/>`;
+      g += `<line class="leaf ${o.kind}" pointer-events="none" x1="${sw.hx}" y1="${sw.hy}" x2="${sw.ox}" y2="${sw.oy}"/>`;
+    }
+    g += planOpening(o, sg);
+    const lab = `<tspan class="f-${o.kind}" font-weight="600">${esc(o.name)}</tspan> ${n(o.w)}`;
+    const out = sw && !sw.inward ? o.w : 0;
+    if (sg.ny) g += `<text x="${mid}" y="${sg.ny < 0 ? sg.y1 + 7 + out : sg.y1 - 3.5 - out}" font-size="3.6" text-anchor="middle">${lab}</text>`;
+    else g += `<text font-size="3.6" text-anchor="middle" transform="translate(${sg.x1 - sg.nx * (3.5 + out)} ${mid}) rotate(${sg.nx > 0 ? -90 : 90})">${lab}</text>`;
+  }
+  g += `<path class="dim" d="M0 ${L + 12}H${W}M0 ${L + 9}v6M${W} ${L + 9}v6"/>`;
+  g += `<text x="${W / 2}" y="${L + 19}" font-size="4.2" text-anchor="middle">${n(W)}″ (${ftin(W)})</text>`;
+  g += `<path class="dim" d="M${W + 12} 0V${L}M${W + 9} 0h6M${W + 9} ${L}h6"/>`;
+  g += `<text font-size="4.2" text-anchor="middle" transform="translate(${W + 19} ${(by + L) / 2}) rotate(90)">${n(L)}″ (${ftin(L)})</text>`;
+  g += `<text class="t-muted" x="${(W - bx) / 2}" y="${-P + 5}" font-size="5" text-anchor="middle" font-weight="700">N</text>`;
+  g += `<text class="t-muted" x="${W / 2}" y="${L + P - 1}" font-size="5" text-anchor="middle" font-weight="700">S</text>`;
+  g += `<text class="t-muted" x="${-P + 3}" y="${L / 2}" font-size="5" text-anchor="middle" font-weight="700">W</text>`;
+  g += `<text class="t-muted" x="${W + P - 3}" y="${by / 2}" font-size="5" text-anchor="middle" font-weight="700">E</text>`;
+  const it = sel();
+  if (it) {
+    const c = clearances(it), cx = it.x + it.w / 2, cy = it.y + it.d / 2;
+    const gapLine = (x1, y1, x2, y2, v, tx, ty) => v > 0.5
+      ? `<line class="clear" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/><text class="clear-t" x="${tx}" y="${ty}" font-size="3.8" text-anchor="middle">${n(v)}</text>` : "";
+    g += `<g pointer-events="none">`;
+    g += gapLine(cx, it.y, cx, c.northWall, c.N, cx + 6, it.y - c.N / 2 + 1.5);
+    g += gapLine(cx, it.y + it.d, cx, L, c.S, cx + 6, it.y + it.d + c.S / 2 + 1.5);
+    g += gapLine(it.x, cy, 0, cy, c.W, it.x - c.W / 2, cy - 2);
+    g += gapLine(it.x + it.w, cy, c.eastWall, cy, c.E, it.x + it.w + c.E / 2, cy - 2);
+    g += `</g>`;
+  }
+  return { vb: `${-P} ${-P} ${W + 2 * P} ${L + 2 * P}`, g };
+}
+
+/* ---------- elevations ---------- */
+function elevSvg(wall) {
+  const { W, L, bx, by, H } = state.room;
+  const horiz = wall === "N" || wall === "S", len = horiz ? W : L;
+  const Y = z => H - z;
+  let g = `<rect class="floor" x="0" y="0" width="${len}" height="${H}"/>`;
+  for (let u = 12; u < len; u += 12) g += `<line class="gridline" x1="${u}" y1="0" x2="${u}" y2="${H}"/>`;
+  for (let z = 12; z < H; z += 12) g += `<line class="gridline" x1="0" y1="${Y(z)}" x2="${len}" y2="${Y(z)}"/>`;
+  if (wall === "N" && bx > 0) {
+    g += `<rect class="bump" x="${W - bx}" y="0" width="${bx}" height="${H}" opacity=".7"/>`;
+    g += `<text class="t-muted" x="${W - bx / 2}" y="10" font-size="4" text-anchor="middle">in-push</text><text class="t-muted" x="${W - bx / 2}" y="15" font-size="4" text-anchor="middle">${n(by)} closer</text>`;
+  }
+  if (wall === "E" && by > 0) {
+    g += `<rect class="bump" x="0" y="0" width="${by}" height="${H}" opacity=".7"/>`;
+    g += `<text class="t-muted" x="${by / 2}" y="10" font-size="4" text-anchor="middle">in-push</text><text class="t-muted" x="${by / 2}" y="15" font-size="4" text-anchor="middle">${n(bx)} closer</text>`;
+  }
+  for (const o of state.openings.filter(o => o.wall === wall)) {
+    const u = alongWall(wall, o.off, o.w);
+    g += elevOpening(o, u, Y(o.sill + o.h), wall);
+    g += `<text x="${u + o.w / 2}" y="${Y(o.sill + o.h) + 7}" font-size="4.2" text-anchor="middle" font-weight="600" pointer-events="none">${esc(o.name)}</text>`;
+    g += `<text class="t-muted" x="${u + o.w / 2}" y="${Y(o.sill + o.h) + 12.5}" font-size="3.8" text-anchor="middle" pointer-events="none">${n(o.w)} × ${n(o.h)}</text>`;
+    if (o.sill > 0) g += `<line class="dim" x1="${u + o.w / 2}" y1="${Y(o.sill)}" x2="${u + o.w / 2}" y2="${H}" stroke-dasharray="3 3"/><text class="t-muted" x="${u + o.w / 2 + 2}" y="${Y(o.sill / 2)}" font-size="3.8">${n(o.sill)} sill</text>`;
+  }
+  // far pieces first so the ones on the wall are drawn on top; taller first within a tier
+  const boxes = state.items.flatMap(parts).map(p => ({ ...p, gap: wallGap(wall, p) }))
+    .sort((a, b) => b.gap - a.gap || b.h - a.h);
+  for (const p of boxes) {
+    const size = horiz ? p.w : p.d, u = alongWall(wall, horiz ? p.x : p.y, size), t = tier(p.gap);
+    g += `<rect class="ev ${t}${p.it.id === selId ? " sel" : ""}" data-id="${p.it.id}" x="${u}" y="${Y(p.z + p.h)}" width="${size}" height="${Math.max(p.h, 0.8)}" fill="${esc(p.it.color)}"/>`;
+    if (t !== "far") g += `<g opacity="${t === "near" ? 0.5 : 1}">${elevDeco(p, u, Y(p.z + p.h), size, p.h)}</g>`;
+    if (p.h >= 7 && size >= 14) {
+      const name = p.head ? "Headboard" : p.it.name, cls = t === "far" ? "lab-far" : t === "near" ? "t-muted" : "";
+      g += `<text class="${cls}" x="${u + size / 2}" y="${Math.max(Y(p.z + p.h) - 1.5, 4)}" font-size="3.8" text-anchor="middle" pointer-events="none"${t === "flush" ? ' font-weight="600"' : ""}>${esc(name)}${t === "far" ? "" : " · " + n(p.z + p.h) + " high"}${t === "flush" ? "" : " · " + n(p.gap) + " off wall"}</text>`;
+    }
+  }
+  g += `<rect class="wall" x="0" y="0" width="${len}" height="${H}" pointer-events="none"/>`;
+  g += `<path class="dim" d="M0 ${H + 9}H${len}M0 ${H + 6}v6M${len} ${H + 6}v6"/>`;
+  g += `<text x="${len / 2}" y="${H + 16}" font-size="4.4" text-anchor="middle">${n(len)}″</text>`;
+  g += `<text class="t-muted" x="0" y="${H + 16}" font-size="4.4" font-weight="700">${ENDS[wall][0]}</text>`;
+  g += `<text class="t-muted" x="${len}" y="${H + 16}" font-size="4.4" font-weight="700" text-anchor="end">${ENDS[wall][1]}</text>`;
+  g += `<text font-size="4.4" text-anchor="middle" transform="translate(-6 ${H / 2}) rotate(-90)">${n(H)}″ ceiling</text>`;
+  return { vb: `-14 -6 ${len + 22} ${H + 28}`, g };
+}
+
+/* ---------- views ---------- */
+const cards = {};
+for (const v of VIEWS) {
+  const el = document.createElement("div");
+  el.className = "card view"; el.dataset.view = v;
+  el.innerHTML = `<h2>${v === "plan" ? "Floor plan · north up" : WALLS[v] + " wall · from inside"}</h2><svg></svg>`;
+  cards[v] = el;
+}
+const svgOf = v => cards[v].querySelector("svg");
+function layoutViews() {
+  $("#main").replaceChildren(cards[mainView]);
+  $("#thumbs").replaceChildren(...VIEWS.filter(v => v !== mainView).map(v => cards[v]));
+}
+function drawViews() {
+  for (const v of VIEWS) {
+    const { vb, g } = v === "plan" ? planSvg() : elevSvg(v);
+    const svg = svgOf(v);
+    svg.setAttribute("viewBox", vb);
+    svg.innerHTML = g;
+  }
+  const r = state.room;
+  $("#legend").innerHTML = `<b>Wall views:</b>
+    <span><i></i>on the wall (within ${n(r.flush)}″)</span>
+    <span><i class="near"></i>close (within ${n(r.near)}″)</span>
+    <span><i class="far"></i>further out, shown as a ghost</span>`;
+}
+function setMain(v) { mainView = v; layoutViews(); draw(); }
+
+/* ---------- interaction ---------- */
+let drag = null;
+function svgPoint(e) {
+  const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svgOf(mainView).getScreenCTM().inverse());
+  return { x: p.x, y: p.y };
+}
+$("#thumbs").addEventListener("click", e => { const c = e.target.closest(".view"); if (c) setMain(c.dataset.view); });
+const mainEl = $("#main");
+mainEl.addEventListener("pointerdown", e => {
+  if (!e.target.closest("svg")) return;
+  const id = e.target.dataset && e.target.dataset.id;
+  if (!id) { if (selId) select(null); return; }
+  select(id);
+  const it = sel();
+  drag = { p: svgPoint(e), x: it.x, y: it.y };
+  mainEl.setPointerCapture(e.pointerId);
+});
+mainEl.addEventListener("pointermove", e => {
+  const it = sel();
+  if (!drag || !it) return;
+  const p = svgPoint(e), du = Math.round(p.x - drag.p.x), dv = Math.round(p.y - drag.p.y);
+  // in a wall view a piece only slides along that wall
+  const dx = { plan: du, N: du, S: -du, E: 0, W: 0 }[mainView];
+  const dy = { plan: dv, N: 0, S: 0, E: du, W: -du }[mainView];
+  moveTo(it, drag.x + dx, drag.y + dy);
+  buildSelForm(); draw();
+});
+const endDrag = () => { drag = null; };
+mainEl.addEventListener("pointerup", endDrag);
+mainEl.addEventListener("pointercancel", endDrag);
+
+onDraw = drawViews;
+layoutViews(); initPlanner();
+</script>
+</body>
+</html>

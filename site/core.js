@@ -1,0 +1,504 @@
+"use strict";
+// Shared by plan.html (2D) and index.html (3D): the measured room, the ready-made
+// layouts, saved state, the collision rules and the sidebar. Each page supplies only its own view.
+const KEY = "bedroom-planner-v1";
+const PLANS_KEY = "bedroom-planner-plans-v1";
+const DEFAULT = {
+  planId: null,
+  room: { W: 129, L: 164, bx: 31, by: 48, H: 111, flush: 3, near: 24 },
+  openings: [
+    { id: "door", name: "Door", kind: "door", wall: "N", off: 59, w: 39, sill: 0, h: 80, hinge: "end", swing: "in" },
+    { id: "closet", name: "Closet door", kind: "closet", wall: "W", off: 82, w: 35, sill: 0, h: 80, hinge: "end", swing: "in" },
+    { id: "window", name: "Window", kind: "window", wall: "W", off: 130, w: 34, sill: 39, h: 48, hinge: "none", swing: "in" }
+  ],
+  items: [
+    { id: "bed", name: "Bed", x: 39, y: 78, w: 66, d: 86, h: 24, z: 0, color: "#7c93c4", kind: "bed", solid: true, headH: 46, headT: 3, headSide: "S" }
+  ]
+};
+// Femi's own bench, measured 46 x 16; its 18 in height is read off photos.
+const BENCH = "Tufted storage bench";
+// name, width, depth, height, off floor, colour, solid, kind
+const PRESETS = [
+  ["Dresser", 36, 18, 34, 0, "#b98b5e", true, "dresser"], ["Tall drawers", 28, 19, 48, 0, "#b98b5e", true, "dresser"],
+  ["Wardrobe", 39, 23, 79, 0, "#a98f6f", true, "wardrobe"], ["Clothes rack", 48, 18, 65, 0, "#9aa3ad", true, "rack"],
+  ["Shoe cabinet", 31, 9, 40, 0, "#c7b08e", true, "shoe"], ["Bench", 48, 16, 18, 0, "#a9825a", true, "bench"], [BENCH, 46, 16, 18, 0, "#4a4d55", true, "ottoman"],
+  ["Nightstand", 20, 16, 24, 0, "#d1b48c", true, "nightstand"], ["Bookshelf", 32, 12, 72, 0, "#9c7b55", true, "shelf"],
+  ["Armchair", 32, 34, 32, 0, "#7fae8f", true, "chair"], ["Rug", 96, 60, 0.5, 0, "#d9a5a0", false, "rug"],
+  ["Wall shelf", 36, 8, 2, 60, "#a8a29e", true, "other"], ["Mirror", 24, 1, 60, 12, "#9fc5d8", true, "mirror"],
+  ["Framed art", 24, 1, 30, 50, "#efe4cc", true, "art"], ["Wall hanging", 30, 1, 45, 40, "#3f5f9e", true, "textile"], ["Peg rail with gear", 36, 2, 20, 50, "#c9b592", true, "pegs"],
+  ["Custom box", 24, 24, 24, 0, "#bdbdbd", true, "other"]
+];
+const KINDS = { bed: "Bed", bench: "Bench", ottoman: "Upholstered storage bench", dresser: "Dresser / drawers", wardrobe: "Wardrobe", rack: "Clothes rack", shoe: "Shoe storage",
+  nightstand: "Nightstand", shelf: "Shelving", chair: "Chair", rug: "Rug", mirror: "Mirror",
+  art: "Framed art", textile: "Wall hanging", pegs: "Peg rail with gear", lamp: "Lamp", plant: "Plant", other: "Plain box" };
+// Starting points that ship with the page.
+const KIND_COLOR = { bed: "#7c93c4", bench: "#a9825a", ottoman: "#4a4d55", dresser: "#b98b5e", wardrobe: "#a98f6f", rack: "#9aa3ad", shoe: "#c7b08e",
+  nightstand: "#d1b48c", shelf: "#9c7b55", chair: "#7fae8f", rug: "#d9a5a0", mirror: "#9fc5d8", lamp: "#e3c66b", plant: "#7fae8f",
+  art: "#efe4cc", textile: "#3f5f9e", pegs: "#c9b592", other: "#bdbdbd" };
+// [name, kind, x, y, width, depth, height, off floor, headboard side]
+const pc = ([name, kind, x, y, w, d, h, z = 0, headSide = ""], i) => ({ id: kind + i, name, kind, x, y, w, d, h, z, color: KIND_COLOR[kind],
+  solid: kind !== "rug", headH: headSide ? 46 : 0, headT: 3, headSide: headSide || "S" });
+const layout = (id, name, note, why, rows) => ({ id, name, note, why, items: rows.map(pc) });
+const BUILTIN = [
+  layout("b3", "Bed facing the window", "wake to light",
+    "Bed turned with its head on the east wall and its foot toward the window, so the middle of the room is one open floor. A tall PAX wardrobe fills the north-west corner facing south, with a KALLAX shoe tower beside it and clear of the door swing. Overflow hangs on an open RIGGA rack on the west wall, folded things go in a MALM tall chest against the east wall under the Adire hanging, and the bench sits across the foot of the bed. Tightest walkway is 27 in, between the bench and the window wall. The open rack is visible clutter and this holds the fewest shoes (about 12 pairs).", [
+    ["Bed", "bed", 43, 98, 86, 66, 24, 0, "E"], [BENCH, "ottoman", 27, 117, 16, 46, 18],
+    ["PAX wardrobe 39 3/8, tall", "wardrobe", 0, 0, 39.375, 22.875, 93.125], ["KALLAX 1x4 shoe tower", "shoe", 39.375, 0, 15.375, 16.5, 57.875],
+    ["RIGGA clothes rack", "rack", 0, 22.875, 20.125, 43.75, 68.875],
+    ["MALM 6-drawer tall chest", "dresser", 110.125, 48, 18.875, 31.5, 48.375], ["Jute rug 5'3 x 7'7", "rug", 36, 48, 90.5, 63, 0.5],
+    ["Yosemite panorama", "art", 128, 107, 1, 48, 30, 54], ["Park print", "art", 55, 163, 18, 1, 24, 50], ["Park print", "art", 77, 163, 18, 1, 24, 50], ["Park print", "art", 99, 163, 18, 1, 24, 50], ["Adire wall hanging", "textile", 128, 48, 1, 32, 40, 54], ["Framed topo map", "art", 0, 32, 1, 24, 24, 74], ["Summit photos", "art", 100, 48, 24, 1, 20, 50]]),
+  layout("a1", "Corner bed, maximum storage", "most storage",
+    "Bed in the south-east corner. A tall PAX wardrobe by the door takes hanging clothes, a 63 in MALM dresser sits under the window and doubles as the nightstand, and an open 5-tier rack on the west wall takes 15 to 20 pairs of shoes. Bench stays at the foot. Main walkway is 51 in; the tightest spot is 24 in in front of the wardrobe doors. The bed is reachable from one side only and the north-west corner is furniture-heavy.", [
+    ["Bed", "bed", 63, 78, 66, 86, 24, 0, "S"], [BENCH, "ottoman", 64, 62, 46, 16, 18],
+    ["PAX wardrobe 39 3/8, tall", "wardrobe", 0, 0, 39.375, 22.875, 93.125], ["MALM 6-drawer dresser", "dresser", 0, 145.125, 63, 18.875, 30.75],
+    ["5-tier shoe rack", "shoe", 0, 50, 12, 30, 35], ["Hook rail", "other", 104, 48, 18.875, 3.5, 5.5, 62],
+    ["Runner rug 30 x 84", "rug", 28, 55, 30, 84, 0.5],
+    ["Yosemite panorama", "art", 72, 163, 48, 1, 32, 54], ["Trip photo grid", "art", 8, 163, 48, 1, 28, 38], ["Adire wall hanging", "textile", 128, 90, 1, 30, 40, 48], ["Framed topo map", "art", 0, 53, 1, 24, 28, 44], ["Summit photo", "art", 42, 0, 14, 1, 20, 50]]),
+  layout("a3", "Centred bed, both sides open", "two-sided bed",
+    "Bed stays almost where it is, so you can get in from either side: 38 in on the west, 25 in on the east. Tall PAX by the door, a narrow KULLEN 5-drawer chest south of the in-push, an open shoe rack under the window, a nightstand and a shelf over the headboard. Bench keeps its place at the foot. Tightest walkway is 25 in. Least drawer space of the storage-first set.", [
+    ["Bed", "bed", 38, 78, 66, 86, 24, 0, "S"], [BENCH, "ottoman", 39, 62, 46, 16, 18],
+    ["PAX wardrobe 39 3/8, tall", "wardrobe", 0, 0, 39.375, 22.875, 93.125], ["5-tier shoe rack", "shoe", 0, 128, 12, 36, 35],
+    ["KULLEN 5-drawer chest", "dresser", 113.25, 48, 15.75, 27.5, 44.125], ["MALM 2-drawer nightstand", "nightstand", 110.125, 148.25, 18.875, 15.75, 21.625],
+    ["Wall shelf over bed", "other", 49, 153.75, 43.25, 10.25, 2, 60], ["Hook rail", "other", 0, 50, 3.5, 18.875, 5.5, 62],
+    ["Rug 60 x 96", "rug", 14, 48, 96, 60, 0.5],
+    ["Park print", "art", 52, 163, 18, 1, 22, 63], ["Park print", "art", 73, 163, 18, 1, 22, 63], ["Adire wall hanging", "textile", 128, 85, 1, 30, 45, 40], ["Framed topo map", "art", 0, 26, 1, 20, 28, 48], ["Summit photos", "art", 102, 48, 24, 1, 20, 50], ["Summit photo", "art", 42, 0, 14, 1, 20, 50]])
+];
+const WALLS = { N: "North", E: "East", S: "South", W: "West" };
+const ENDS = { N: ["W", "E"], E: ["N", "S"], S: ["E", "W"], W: ["S", "N"] };
+const CLOCKWISE = { N: "E", E: "S", S: "W", W: "N" };
+
+let state = load();
+let selId = null;
+let storageOk = true;
+let plans = loadPlans();
+let armedKey = null, armTimer = null;
+
+function loadPlans() {
+  try { return JSON.parse(localStorage.getItem(PLANS_KEY) || "[]"); }
+  catch (e) { console.warn("Could not read saved plans:", e); storageOk = false; return []; }
+}
+function savePlans() {
+  try { localStorage.setItem(PLANS_KEY, JSON.stringify(plans)); }
+  catch (e) { console.warn("Could not save plans:", e); storageOk = false; }
+}
+
+// Fill in fields added after a layout was saved, so old saves and imports keep working.
+function normalize(s) {
+  s.room.flush ??= DEFAULT.room.flush;
+  s.room.near ??= DEFAULT.room.near;
+  if (s.room.H === 96) s.room.H = 111; // first version guessed the ceiling; it measures 111"
+  for (const o of s.openings) {
+    const d = DEFAULT.openings.find(x => x.id === o.id);
+    if (!o.hinge) o.hinge = d ? d.hinge : "none";
+    if (!o.swing) o.swing = "in";
+    // The first version guessed the closet door at the north end; it is 13" from the window.
+    if (o.id === "closet" && o.off === 12) { o.off = 82; o.hinge = "end"; }
+  }
+  const head = s.items.find(i => i.id === "head"), bed = s.items.find(i => i.id === "bed");
+  if (head && bed) {
+    s.items = s.items.filter(i => i !== head);
+    Object.assign(bed, { headH: head.h, headT: 3, headSide: bed.w >= bed.d ? "N" : "S" });
+  }
+  for (const it of s.items) {
+    if (it.name === "Bench (size assumed)") {
+      const long = it.w >= it.d ? "w" : "d", at = long === "w" ? "x" : "y";
+      it[at] += (it[long] - 46) / 2; it[long] = 46;
+      Object.assign(it, { name: BENCH, kind: "ottoman", color: KIND_COLOR.ottoman });
+    }
+    it.solid ??= it.h > 1;
+    it.headH ??= 0; it.headT ??= 3; it.headSide ??= "S";
+  }
+  return s;
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) return normalize(JSON.parse(raw));
+  } catch (e) { console.warn("Could not read saved layout:", e); }
+  return structuredClone(DEFAULT);
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); }
+  catch (e) { console.warn("Could not save layout:", e); storageOk = false; }
+}
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const n = v => +(+v).toFixed(1);
+const ftin = v => { const f = Math.floor(v / 12), i = n(v - f * 12); return f + "′" + (i ? " " + i + "″" : ""); };
+const sel = () => state.items.find(i => i.id === selId) || null;
+const uid = () => "i" + Date.now().toString(36) + Math.floor(Math.random() * 1e4);
+
+/* ---------- geometry ---------- */
+const bumpRect = () => { const r = state.room; return { x: r.W - r.bx, y: 0, w: r.bx, d: r.by }; };
+const overlap = (a, b) => a.x < b.x + b.w - 0.01 && b.x < a.x + a.w - 0.01 && a.y < b.y + b.d - 0.01 && b.y < a.y + a.d - 0.01;
+const topOf = it => it.z + Math.max(it.h, it.headH || 0);
+function outside(it) { const r = state.room; return it.x < 0 || it.y < 0 || it.x + it.w > r.W || it.y + it.d > r.L; }
+// Everything this item is not allowed to overlap: the in-push, and other solid pieces at the same height.
+function blockers(it) {
+  const out = [];
+  const b = bumpRect();
+  if (b.w > 0 && b.d > 0 && overlap(it, b)) out.push(b);
+  if (it.solid) for (const o of state.items) {
+    if (o !== it && o.solid && overlap(it, o) && it.z < topOf(o) && o.z < topOf(it)) out.push(o);
+  }
+  return out;
+}
+// Slide along one axis toward a target, stopping flush against whatever is in the way.
+function slide(it, axis, target) {
+  const old = it[axis], size = axis === "x" ? "w" : "d";
+  if (target === old) return;
+  it[axis] = target;
+  const hit = blockers(it);
+  if (!hit.length) return;
+  const stops = hit.map(b => target > old ? b[axis] - it[size] : b[axis] + b[size]);
+  const stop = target > old ? Math.min(...stops) : Math.max(...stops);
+  it[axis] = stop;
+  if ((target > old ? stop < old : stop > old) || blockers(it).length) it[axis] = old;
+}
+function moveTo(it, x, y) {
+  const r = state.room;
+  slide(it, "x", Math.min(Math.max(x, 0), Math.max(r.W - it.w, 0)));
+  slide(it, "y", Math.min(Math.max(y, 0), Math.max(r.L - it.d, 0)));
+}
+// Put a new piece in the first open spot, scanning from where it was asked to go.
+function placeFree(it) {
+  if (!blockers(it).length) return;
+  const r = state.room, x0 = it.x, y0 = it.y;
+  for (let y = 0; y <= r.L - it.d; y += 3) for (let x = 0; x <= r.W - it.w; x += 3) {
+    it.x = x; it.y = y;
+    if (!blockers(it).length) return;
+  }
+  it.x = x0; it.y = y0;
+}
+function clearances(it) {
+  const r = state.room;
+  const northWall = it.x + it.w > r.W - r.bx ? r.by : 0;
+  const eastWall = it.y < r.by ? r.W - r.bx : r.W;
+  return { N: it.y - northWall, S: r.L - (it.y + it.d), W: it.x, E: eastWall - (it.x + it.w), northWall, eastWall };
+}
+// The boxes that make up a piece: its body, plus a headboard strip if it has one.
+function parts(it) {
+  const out = [{ it, x: it.x, y: it.y, w: it.w, d: it.d, z: it.z, h: it.h, head: false }];
+  if (it.headH > 0) {
+    const t = Math.min(it.headT, it.headSide === "N" || it.headSide === "S" ? it.d : it.w);
+    const p = { it, x: it.x, y: it.y, w: it.w, d: it.d, z: it.z, h: it.headH, head: true };
+    if (it.headSide === "N") p.d = t;
+    if (it.headSide === "S") { p.y = it.y + it.d - t; p.d = t; }
+    if (it.headSide === "W") p.w = t;
+    if (it.headSide === "E") { p.x = it.x + it.w - t; p.w = t; }
+    out.push(p);
+  }
+  return out;
+}
+// Wall segment an opening sits on, plus the unit normal pointing into the room.
+function opSeg(o) {
+  const { W, L, bx, by } = state.room, mid = o.off + o.w / 2;
+  if (o.wall === "N" || o.wall === "S") {
+    const y = o.wall === "S" ? L : (mid > W - bx ? by : 0);
+    return { x1: o.off, y1: y, x2: o.off + o.w, y2: y, nx: 0, ny: o.wall === "S" ? -1 : 1 };
+  }
+  const x = o.wall === "W" ? 0 : (mid < by ? W - bx : W);
+  return { x1: x, y1: o.off, x2: x, y2: o.off + o.w, nx: o.wall === "W" ? 1 : -1, ny: 0 };
+}
+// Hinge point, closed-leaf tip and fully open (90 degree) tip of a swinging door.
+function swingGeom(o) {
+  if (!o.hinge || o.hinge === "none") return null;
+  const s = opSeg(o), dir = o.swing === "out" ? -1 : 1;
+  const [hx, hy, fx, fy] = o.hinge === "start" ? [s.x1, s.y1, s.x2, s.y2] : [s.x2, s.y2, s.x1, s.y1];
+  return { hx, hy, fx, fy, ox: hx + s.nx * dir * o.w, oy: hy + s.ny * dir * o.w, r: o.w, inward: dir === 1 };
+}
+// True when an item sits inside the quarter circle a door sweeps through.
+function inSwing(it) {
+  return it.solid && state.openings.some(o => {
+    const g = swingGeom(o);
+    if (!g || !g.inward || it.z >= o.sill + o.h) return false;
+    const qx0 = Math.min(g.hx, g.fx, g.ox), qx1 = Math.max(g.hx, g.fx, g.ox);
+    const qy0 = Math.min(g.hy, g.fy, g.oy), qy1 = Math.max(g.hy, g.fy, g.oy);
+    const x0 = Math.max(it.x, qx0), x1 = Math.min(it.x + it.w, qx1);
+    const y0 = Math.max(it.y, qy0), y1 = Math.min(it.y + it.d, qy1);
+    if (x0 >= x1 || y0 >= y1) return false;
+    const px = Math.min(Math.max(g.hx, x0), x1), py = Math.min(Math.max(g.hy, y0), y1);
+    return Math.hypot(px - g.hx, py - g.hy) < g.r - 0.01;
+  });
+}
+const isBad = it => outside(it) || blockers(it).length > 0 || inSwing(it);
+// Position along a wall as seen from inside the room, left to right.
+function alongWall(wall, start, size) {
+  const r = state.room;
+  if (wall === "N" || wall === "E") return start;
+  return (wall === "S" ? r.W : r.L) - start - size;
+}
+// Gap between a box and the wall being looked at (the in-push counts as wall).
+function wallGap(wall, p) {
+  const c = clearances(p);
+  return Math.max(c[wall], 0);
+}
+function tier(gap) { return gap <= state.room.flush ? "flush" : gap <= state.room.near ? "near" : "far"; }
+
+// Pieces saved before "kind" existed are recognised by name.
+function kindOf(it) {
+  if (it.kind) return it.kind;
+  const nm = it.name.toLowerCase();
+  const table = [["nightstand", /night|bedside/], ["bed", /\bbed\b/], ["ottoman", /ottoman|storage bench|upholstered/], ["bench", /bench/], ["shoe", /shoe/], ["wardrobe", /wardrobe|armoire|pax/],
+    ["rack", /rack|rail/], ["dresser", /dresser|drawer|chest/], ["shelf", /shel|book/], ["chair", /chair|sofa/], ["rug", /rug|carpet/],
+    ["mirror", /mirror/], ["lamp", /lamp/], ["plant", /plant/],
+    ["textile", /hanging|tapestry|textile/], ["pegs", /peg/], ["art", /art|print|photo|poster|map|frame|panorama/]];
+  const hit = table.find(([, re]) => re.test(nm));
+  return hit ? hit[0] : "other";
+}
+
+/* ---------- sidebar ---------- */
+function drawList() {
+  $("#list").innerHTML = state.items.map(it =>
+    `<li data-id="${it.id}" class="${it.id === selId ? "sel" : ""}"><span class="sw" style="background:${esc(it.color)}"></span>${esc(it.name)}<small>${n(it.w)}×${n(it.d)}×${n(it.h)}</small></li>`).join("");
+}
+function num(label, key, v, attrs = "") {
+  return `<label>${label}<input type="number" step="0.5" data-k="${key}" value="${n(v)}" ${attrs}></label>`;
+}
+function buildSelForm() {
+  const it = sel(), el = $("#selCard");
+  if (!it) { el.innerHTML = `<h2>Selected</h2><p class="hint" style="margin:0">Click a piece of furniture to edit it, or add one below.</p>`; return; }
+  el.innerHTML = `<h2>Selected</h2>
+    <div class="row"><label>Name<input data-k="name" value="${esc(it.name)}"></label>
+      <label>Looks like<select data-k="kind">${Object.keys(KINDS).map(k => `<option value="${k}"${k === kindOf(it) ? " selected" : ""}>${KINDS[k]}</option>`).join("")}</select></label>
+      <label>Colour<input type="color" data-k="color" value="${esc(it.color)}"></label></div>
+    <div class="row">${num("Width (E–W)", "w", it.w, 'min="0.5"')}${num("Depth (N–S)", "d", it.d, 'min="0.5"')}${num("Height", "h", it.h, 'min="0"')}</div>
+    <div class="row">${num("From west wall", "x", it.x)}${num("From north wall", "y", it.y)}${num("Off the floor", "z", it.z, 'min="0"')}</div>
+    <div class="row">${num("Headboard height", "headH", it.headH, 'min="0"')}${num("Headboard thick", "headT", it.headT, 'min="0.5"')}
+      <label>Headboard end<select data-k="headSide">${Object.keys(WALLS).map(w => `<option value="${w}"${w === it.headSide ? " selected" : ""}>${WALLS[w]}</option>`).join("")}</select></label></div>
+    <div class="row two"><label>Front faces (3D view)<select data-k="face"><option value="auto">Away from the nearest wall</option>${Object.keys(WALLS).map(w => `<option value="${w}"${w === it.face ? " selected" : ""}>${WALLS[w]}</option>`).join("")}</select></label>
+      <label class="check" style="margin:0;align-self:end"><input type="checkbox" data-k="solid"${it.solid ? " checked" : ""}>Solid (untick for rugs)</label></div>
+    <div class="btns"><button data-act="rot">Rotate 90°</button><button data-act="dup">Duplicate</button><button data-act="del">Delete</button></div>
+    <p class="hint">Headboard height 0 means no headboard. Its thickness is part of the depth.</p>`;
+}
+function buildRoomForm() {
+  const r = state.room;
+  let h = `<div class="row">${num("Width (E–W)", "room.W", r.W)}${num("Length (N–S)", "room.L", r.L)}${num("Ceiling", "room.H", r.H)}</div>
+    <div class="row two">${num("In-push width (E–W)", "room.bx", r.bx)}${num("In-push length (N–S)", "room.by", r.by)}</div>
+    <div class="row two">${num("Counts as on the wall within", "room.flush", r.flush, 'min="0"')}${num("Counts as close within", "room.near", r.near, 'min="0"')}</div>`;
+  state.openings.forEach((o, i) => {
+    const ns = o.wall === "N" || o.wall === "S";
+    h += `<div class="opbox"><div class="row two"><label>Name<input data-k="openings.${i}.name" value="${esc(o.name)}"></label>
+      <label>Wall<select data-k="openings.${i}.wall">${Object.keys(WALLS).map(w => `<option value="${w}"${w === o.wall ? " selected" : ""}>${WALLS[w]}</option>`).join("")}</select></label></div>
+      <div class="row two">${num("Start, from " + (ns ? "west" : "north") + " end", `openings.${i}.off`, o.off)}${num("Width", `openings.${i}.w`, o.w)}</div>
+      <div class="row two">${num("Sill height", `openings.${i}.sill`, o.sill)}${num("Height", `openings.${i}.h`, o.h)}</div>
+      <div class="row two"><label>Hinge<select data-k="openings.${i}.hinge">${[["none", "No swing"], ["start", (ns ? "West" : "North") + " side"], ["end", (ns ? "East" : "South") + " side"]].map(([v, t]) => `<option value="${v}"${v === o.hinge ? " selected" : ""}>${t}</option>`).join("")}</select></label>
+      <label>Opens<select data-k="openings.${i}.swing"><option value="in"${o.swing !== "out" ? " selected" : ""}>Into the room</option><option value="out"${o.swing === "out" ? " selected" : ""}>Out of the room</option></select></label></div></div>`;
+  });
+  $("#roomForm").innerHTML = h;
+}
+
+const currentPlan = () => [...BUILTIN, ...plans].find(p => p.id === state.planId) || null;
+const isSaved = p => plans.includes(p);
+function isDirty() { const p = currentPlan(); return JSON.stringify(p ? p.items : DEFAULT.items) !== JSON.stringify(state.items); }
+function drawPlans() {
+  const cur = currentPlan(), dirty = isDirty();
+  const row = p => {
+    const armedLoad = armedKey === "load:" + p.id, armedDel = armedKey === "del:" + p.id;
+    const note = armedLoad ? "click again, unsaved changes go" : armedDel ? "click again to delete"
+      : p === cur ? (dirty ? "open, edited" : "open") : isSaved(p) ? p.items.length + " pieces" : p.note;
+    return `<li data-plan="${p.id}" class="${p === cur ? "cur" : ""}${armedLoad || armedDel ? " armed" : ""}">${esc(p.name)}<small>${note}</small>${isSaved(p) ? `<button class="x" data-del="${p.id}" title="Delete this plan">✕</button>` : ""}</li>`;
+  };
+  $("#plansBox").innerHTML = `<div class="sub">Ready-made</div><ul class="plans">${BUILTIN.map(row).join("")}</ul>
+    <div class="sub">Yours</div><ul class="plans">${plans.length ? plans.map(row).join("") : `<li style="cursor:default;color:var(--muted)">None saved yet</li>`}</ul>`;
+  const up = $("#updatePlan");
+  up.hidden = !(cur && isSaved(cur) && dirty);
+  if (!up.hidden) up.textContent = `Save changes to “${cur.name}”`;
+  $("#planWhy").textContent = cur && cur.why ? cur.why : "";
+  $("#planHint").textContent = storageOk ? "Click a plan to open it." : "This browser is blocking storage, so plans will not survive closing the tab. Use Export JSON to keep them.";
+}
+// Destructive clicks need a second click within four seconds.
+function confirmTwice(key, fn) {
+  clearTimeout(armTimer);
+  if (armedKey === key) { armedKey = null; fn(); return; }
+  armedKey = key;
+  armTimer = setTimeout(() => { armedKey = null; drawPlans(); }, 4000);
+  drawPlans();
+}
+function openPlan(p) {
+  state.items = normalize({ room: { ...state.room }, openings: [], items: structuredClone(p.items) }).items;
+  state.planId = p.id; selId = null; buildSelForm(); draw();
+}
+// Each page sets these: onDraw repaints its view, nudge turns an arrow key into a move across the floor.
+let onDraw = () => {};
+let nudge = (dx, dy) => [dx, dy];
+function refresh() { onDraw(); drawList(); drawPlans(); }
+function draw() { refresh(); save(); }
+function select(id) { selId = id; buildSelForm(); draw(); }
+
+/* ---------- sidebar wiring ---------- */
+const SIDEBAR = `<div class="card" id="selCard"></div>
+<div class="card">
+  <h2>Furniture</h2>
+  <ul id="list"></ul>
+  <div class="row two" style="margin-top:10px">
+    <select id="preset"></select>
+    <button id="add">Add</button>
+  </div>
+</div>
+<div class="card">
+  <h2>Plans</h2>
+  <div id="plansBox"></div>
+  <div class="row two"><input id="planName" placeholder="Name this plan"><button id="savePlan">Save as new plan</button></div>
+  <button id="updatePlan" hidden></button>
+  <p class="hint" id="planWhy" style="color:var(--ink)"></p>
+  <p class="hint" id="planHint"></p>
+</div>
+<div class="card">
+  <details>
+    <summary>Room, doors and window</summary>
+    <div id="roomForm"></div>
+  </details>
+</div>
+<div class="card">
+  <h2>Save</h2>
+  <div class="btns">
+    <button id="export">Export JSON</button>
+    <button id="import">Import JSON</button>
+    <button id="print">Print</button>
+    <button id="reset">Reset to measured room</button>
+  </div>
+  <input type="file" id="file" accept="application/json" hidden>
+  <p class="hint">Your work and saved plans stay in this browser. Export writes everything, plans included, to one JSON file.</p>
+</div>
+<div class="card">
+  <h2>Keys and rules</h2>
+  <p class="hint" id="keysHint" style="margin:0">Arrow keys nudge 1″ (Shift = 6″), R rotates, Delete removes, Esc deselects. Solid pieces stop at walls and at each other. A red dashed outline means a piece blocks a door swing or overlaps something.</p>
+</div>`;
+const OPPOSITE = { N: "S", E: "W", S: "N", W: "E" };
+// Which way a piece's front points. Beds face away from the headboard; everything else faces
+// away from the wall it is nearest, measured across its short side, unless a facing was chosen.
+function frontDir(it) {
+  if (it.headH > 0) return OPPOSITE[it.headSide];
+  if (it.face && it.face !== "auto") return it.face;
+  const c = clearances(it), ratio = it.w / it.d;
+  const sides = ratio > 1.15 ? ["S", "N"] : ratio < 0.87 ? ["E", "W"] : ["S", "E", "N", "W"];
+  return sides.reduce((a, b) => (c[b] > c[a] + 0.01 ? b : a));
+}
+function rotateItem(it) {
+  const facing = it.headH > 0 ? null : frontDir(it), cx = it.x + it.w / 2, cy = it.y + it.d / 2, r = state.room;
+  [it.w, it.d] = [it.d, it.w];
+  it.x = Math.min(Math.max(Math.round(cx - it.w / 2), 0), Math.max(r.W - it.w, 0));
+  it.y = Math.min(Math.max(Math.round(cy - it.d / 2), 0), Math.max(r.L - it.d, 0));
+  it.headSide = CLOCKWISE[it.headSide];
+  if (facing) it.face = CLOCKWISE[facing];
+  placeFree(it);
+}
+function act(a) {
+  const it = sel();
+  if (!it) return;
+  if (a === "rot") rotateItem(it);
+  if (a === "dup") { const c = { ...it, id: uid(), name: it.name + " copy", x: it.x + 6, y: it.y + 6 }; state.items.push(c); placeFree(c); selId = c.id; }
+  if (a === "del") { state.items = state.items.filter(i => i !== it); selId = null; }
+  buildSelForm(); draw();
+}
+function initPlanner() {
+  $("#side").innerHTML = SIDEBAR;
+  $("#list").addEventListener("click", e => { const li = e.target.closest("li"); if (li) select(li.dataset.id); });
+  $("#selCard").addEventListener("input", e => {
+    const it = sel(), k = e.target.dataset.k;
+    if (!it || !k) return;
+    if (e.target.type === "checkbox") it[k] = e.target.checked;
+    else if (e.target.type === "number") { const v = parseFloat(e.target.value); if (Number.isNaN(v)) return; it[k] = v; }
+    else it[k] = e.target.value;
+    draw();
+  });
+  $("#selCard").addEventListener("click", e => { if (e.target.dataset.act) act(e.target.dataset.act); });
+  $("#roomForm").addEventListener("input", e => {
+    const k = e.target.dataset.k;
+    if (!k) return;
+    const path = k.split("."), last = path.pop();
+    const obj = path.reduce((o, p) => o[p], state);
+    if (e.target.type === "number") { const v = parseFloat(e.target.value); if (Number.isNaN(v)) return; obj[last] = v; }
+    else obj[last] = e.target.value;
+    if (last === "wall") buildRoomForm();
+    draw();
+  });
+
+  $("#preset").innerHTML = PRESETS.map((p, i) => `<option value="${i}">${p[0]} (${p[1]}×${p[2]}×${p[3]})</option>`).join("");
+  $("#add").addEventListener("click", () => {
+    const [name, w, d, h, z, color, solid, kind] = PRESETS[+$("#preset").value], r = state.room;
+    const it = { id: uid(), name, kind, w, d, h, z, color, solid, headH: 0, headT: 3, headSide: "S",
+      x: Math.max(Math.round((r.W - r.bx - w) / 2), 0), y: Math.round(r.by + 6) };
+    state.items.push(it); placeFree(it); select(it.id);
+  });
+  document.addEventListener("keydown", e => {
+    if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+    const it = sel();
+    if (!it) return;
+    const step = e.shiftKey ? 6 : 1;
+    const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+    if (moves[e.key]) { const [dx, dy] = nudge(...moves[e.key]); moveTo(it, it.x + dx, it.y + dy); e.preventDefault(); buildSelForm(); draw(); }
+    else if (e.key === "r" || e.key === "R") act("rot");
+    else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); act("del"); }
+    else if (e.key === "Escape") select(null);
+  });
+  // The 2D and 3D pages share one saved layout, so an edit in one shows up in the other.
+  window.addEventListener("storage", e => {
+    if (e.key === KEY && e.newValue) {
+      try { state = normalize(JSON.parse(e.newValue)); }
+      catch (err) { console.warn("Could not read the layout changed in another tab:", err); return; }
+      if (!sel()) selId = null;
+      buildRoomForm(); buildSelForm(); refresh();
+    } else if (e.key === PLANS_KEY) { plans = loadPlans(); drawPlans(); }
+  });
+
+  $("#export").addEventListener("click", () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify({ ...state, plans }, null, 2)], { type: "application/json" }));
+    a.download = "bedroom-layout.json"; a.click(); URL.revokeObjectURL(a.href);
+  });
+  $("#import").addEventListener("click", () => $("#file").click());
+  $("#file").addEventListener("change", async e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    try {
+      const s = JSON.parse(await f.text());
+      if (!s.room || !Array.isArray(s.items) || !Array.isArray(s.openings)) throw new Error("not a bedroom layout file");
+      for (const p of Array.isArray(s.plans) ? s.plans : []) {
+        if (!p.id || !Array.isArray(p.items)) throw new Error("a saved plan in the file is malformed");
+        plans = plans.filter(x => x.id !== p.id).concat(p);
+      }
+      delete s.plans; savePlans();
+      state = normalize(s); selId = null; buildRoomForm(); buildSelForm(); draw();
+    } catch (err) { alert("Could not import that file: " + err.message); }
+    e.target.value = "";
+  });
+  $("#plansBox").addEventListener("click", e => {
+    const del = e.target.dataset.del;
+    if (del) {
+      confirmTwice("del:" + del, () => { plans = plans.filter(p => p.id !== del); savePlans(); draw(); });
+      return;
+    }
+    const li = e.target.closest("li[data-plan]");
+    if (!li) return;
+    const p = [...BUILTIN, ...plans].find(x => x.id === li.dataset.plan);
+    if (isDirty()) confirmTwice("load:" + p.id, () => openPlan(p)); else openPlan(p);
+  });
+  $("#savePlan").addEventListener("click", () => {
+    const name = $("#planName").value.trim() || "Plan " + (plans.length + 1);
+    const p = { id: uid(), name, items: structuredClone(state.items) };
+    plans.push(p); state.planId = p.id; $("#planName").value = ""; savePlans(); draw();
+  });
+  $("#planName").addEventListener("keydown", e => { if (e.key === "Enter") $("#savePlan").click(); });
+  $("#updatePlan").addEventListener("click", () => {
+    const p = currentPlan();
+    if (!p || !isSaved(p)) return;
+    p.items = structuredClone(state.items); savePlans(); draw();
+  });
+  $("#print").addEventListener("click", () => window.print());
+  // Two clicks instead of a browser confirm box, which some browsers suppress on local files.
+  const resetBtn = $("#reset");
+  let resetTimer = null;
+  function disarmReset() { clearTimeout(resetTimer); resetBtn.classList.remove("armed"); resetBtn.textContent = "Reset to measured room"; }
+  resetBtn.addEventListener("click", () => {
+    if (!resetBtn.classList.contains("armed")) {
+      resetBtn.classList.add("armed"); resetBtn.textContent = "Click again to discard this layout";
+      resetTimer = setTimeout(disarmReset, 4000);
+      return;
+    }
+    disarmReset();
+    state = structuredClone(DEFAULT); selId = null; buildRoomForm(); buildSelForm(); draw();
+  });
+  buildRoomForm(); buildSelForm(); draw();
+}

@@ -1,0 +1,11 @@
+{
+  "name": "bedroom-planner",
+  "private": true,
+  "description": "2D and 3D planner for Femi's San Francisco bedroom",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/",
+    "serve": "python3 -m http.server 4731 --bind 127.0.0.1 --directory site",
+    "deploy": "deploy/deploy.sh"
+  }
+}
