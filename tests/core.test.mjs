@@ -52,6 +52,24 @@ test("the window-facing layout has a PAX wardrobe facing south and nothing block
   assert.deepEqual(out, { pax: ["S"], blocked: [] });
 });
 
+test("a piece standing where a wardrobe's doors open is blocked", () => {
+  const run = loadCore();
+  const blocked = rackY => run(`(() => {
+    const pax = { id: "w", name: "PAX", kind: "wardrobe", x: 0, y: 0, w: 39.375, d: 22.875, h: 93, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" };
+    const rack = { id: "r", name: "Rack", kind: "rack", x: 0, y: ${rackY}, w: 20.125, d: 30, h: 69, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" };
+    state.items = [pax, rack];
+    return isBad(rack);
+  })()`);
+  assert.equal(blocked(22.875), true, "rack against the doors");
+  assert.equal(blocked(43), false, "rack past the door sweep");
+});
+
+test("wardrobe doors open toward the front, one sweep per door, hinged on the outer edges", () => {
+  const run = loadCore();
+  const doors = JSON.parse(run(`JSON.stringify(wardrobeSwings({ id: "w", name: "PAX", kind: "wardrobe", x: 0, y: 0, w: 40, d: 23, h: 93, z: 0, headH: 0 }))`));
+  assert.deepEqual(doors.map(d => [d.hx, d.hy, d.ox, d.oy, d.r]), [[0, 23, 0, 43, 20], [40, 23, 40, 43, 20]]);
+});
+
 test("a piece against a wall faces into the room", () => {
   const run = loadCore();
   const face = it => run(`frontDir(${JSON.stringify(it)})`);
@@ -97,6 +115,12 @@ test("rotating a piece whose facing was guessed turns that facing too", () => {
   })()`);
   const [before, after] = JSON.parse(out);
   assert.equal(after, { N: "E", E: "S", S: "W", W: "N" }[before]);
+});
+
+test("no ready-made layout has a blocked piece", () => {
+  const run = loadCore();
+  const blocked = JSON.parse(run(`JSON.stringify(BUILTIN.flatMap(p => { state.items = p.items; return p.items.filter(isBad).map(i => p.name + ": " + i.name); }))`));
+  assert.deepEqual(blocked, []);
 });
 
 test("every piece in every ready-made layout resolves to a compass facing", () => {

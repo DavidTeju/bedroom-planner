@@ -73,7 +73,7 @@ import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer
 const fmt = n; // the core's one-decimal formatter
 const stage = document.getElementById("stage");
 const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-const ACCENT = css("--accent"), WARN = css("--warn");
+const ACCENT = css("--accent"), WARN = css("--warn"), MUTED = css("--muted");
 const SWING_COLOR = { door: css("--door"), closet: css("--closet") };
 
 /* ---------- renderer, camera, lights ---------- */
@@ -696,6 +696,20 @@ function buildOpening(s, o, u0, u1) {
   leaf.rotation.y = shut + turn * (doorOpen[o.id]?.t ?? 0);
   s.group.add(leaf);
 }
+// The quarter circle of floor a hinged door sweeps over, shaded with its outline.
+function swingFan(group, sw, c) {
+  const a0 = Math.atan2(sw.fy - sw.hy, sw.fx - sw.hx), a1 = Math.atan2(sw.oy - sw.hy, sw.ox - sw.hx), da = Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0));
+  const fan = [], edge = [];
+  for (let i = 0; i <= 24; i++) {
+    const a = a0 + da * i / 24, x = sw.hx + Math.cos(a) * sw.r, z = sw.hy + Math.sin(a) * sw.r;
+    edge.push(new THREE.Vector3(x, 0.14, z));
+    if (i) fan.push(sw.hx, 0.12, sw.hy, edge[i - 1].x, 0.12, edge[i - 1].z, x, 0.12, z);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(fan, 3));
+  group.add(new THREE.Mesh(geo, cached(`fan${c}`, () => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }))));
+  group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(edge), cached(`fanline${c}`, () => new THREE.LineBasicMaterial({ color: c }))));
+}
 function buildRoom() {
   wipe(roomG); wipe(gridG); wipe(swingG); wipe(ceilingG);
   wallSegs = []; doorLeaves = []; doorPivots = [];
@@ -748,19 +762,7 @@ function buildRoom() {
   // the floor each door sweeps over
   for (const o of state.openings) {
     const sw = swingGeom(o);
-    if (!sw || !sw.inward) continue;
-    const a0 = Math.atan2(sw.fy - sw.hy, sw.fx - sw.hx), a1 = Math.atan2(sw.oy - sw.hy, sw.ox - sw.hx), da = Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0));
-    const fan = [], edge = [];
-    for (let i = 0; i <= 24; i++) {
-      const a = a0 + da * i / 24, x = sw.hx + Math.cos(a) * sw.r, z = sw.hy + Math.sin(a) * sw.r;
-      edge.push(new THREE.Vector3(x, 0.14, z));
-      if (i) fan.push(sw.hx, 0.12, sw.hy, edge[i - 1].x, 0.12, edge[i - 1].z, x, 0.12, z);
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(fan, 3));
-    const c = SWING_COLOR[o.kind] || ACCENT;
-    swingG.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false })));
-    swingG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(edge), new THREE.LineBasicMaterial({ color: c })));
+    if (sw && sw.inward) swingFan(swingG, sw, SWING_COLOR[o.kind] || ACCENT);
   }
   roomG.add(gridG, swingG, ceilingG);
   roomG.add(tag("N", "compass", (W - bx) / 2, 0, -16), tag(`S · ${fmt(W)}″ wide`, "compass", W / 2, 0, L + 16),
@@ -845,6 +847,7 @@ function sync() {
       overlayG.add(name);
     }
   }
+  if (show.swings) for (const w of state.items) for (const sw of wardrobeSwings(w)) swingFan(overlayG, sw, MUTED);
   const it = sel();
   if (!it) return;
   const c = clearances(it), cx = it.x + it.w / 2, cz = it.y + it.d / 2, y = 0.5;
@@ -1008,7 +1011,7 @@ function frame(now) {
 
 onDraw = sync;
 initPlanner();
-document.getElementById("keysHint").textContent = "Arrow keys nudge 1″ the way they point on screen (Shift = 6″), R rotates, Delete removes, Esc deselects. Solid pieces stop at walls and at each other. A red outline means a piece blocks a door swing or overlaps something.";
+document.getElementById("keysHint").textContent = "Arrow keys nudge 1″ the way they point on screen (Shift = 6″), R rotates, Delete removes, Esc deselects. Solid pieces stop at walls and at each other. A red outline means a piece blocks a door swing, a room door's or a wardrobe's, or overlaps something.";
 drawBar();
 resize();
 fly("3d", true);

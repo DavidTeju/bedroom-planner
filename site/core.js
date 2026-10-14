@@ -41,12 +41,12 @@ const pc = ([name, kind, x, y, w, d, h, z = 0, headSide = ""], i) => ({ id: kind
 const layout = (id, name, note, why, rows) => ({ id, name, note, why, items: rows.map(pc) });
 const BUILTIN = [
   layout("b3", "Bed facing the window", "wake to light",
-    "Bed turned with its head on the east wall and its foot toward the window, so the middle of the room is one open floor. A tall PAX wardrobe fills the north-west corner facing south, with a KALLAX shoe tower beside it and clear of the door swing. Overflow hangs on an open RIGGA rack on the west wall, folded things go in a MALM tall chest against the east wall under the Adire hanging, and the bench sits across the foot of the bed. Tightest walkway is 27 in, between the bench and the window wall. The open rack is visible clutter and this holds the fewest shoes (about 12 pairs).", [
+    "Bed turned with its head on the east wall and its foot toward the window, so the middle of the room is one open floor. A tall PAX wardrobe fills the north-west corner facing south, with a KALLAX shoe tower beside it and clear of the door swing. Its doors open onto clear floor: the MALM tall chest starts on the west wall just past them, and the open RIGGA rack runs along the in-push facing south, 30 in from the bed. The bench sits across the foot of the bed. Tightest walkway is 27 in, between the bench and the window wall. The open rack is visible clutter and this holds the fewest shoes (about 12 pairs).", [
     ["Bed", "bed", 43, 98, 86, 66, 24, 0, "E"], [BENCH, "ottoman", 27, 117, 16, 46, 18],
     ["PAX wardrobe 39 3/8, tall", "wardrobe", 0, 0, 39.375, 22.875, 93.125], ["KALLAX 1x4 shoe tower", "shoe", 39.375, 0, 15.375, 16.5, 57.875],
-    ["RIGGA clothes rack", "rack", 0, 22.875, 20.125, 43.75, 68.875],
-    ["MALM 6-drawer tall chest", "dresser", 110.125, 48, 18.875, 31.5, 48.375], ["Jute rug 5'3 x 7'7", "rug", 36, 48, 90.5, 63, 0.5],
-    ["Yosemite panorama", "art", 128, 107, 1, 48, 30, 54], ["Park print", "art", 55, 163, 18, 1, 24, 50], ["Park print", "art", 77, 163, 18, 1, 24, 50], ["Park print", "art", 99, 163, 18, 1, 24, 50], ["Adire wall hanging", "textile", 128, 48, 1, 32, 40, 54], ["Framed topo map", "art", 0, 32, 1, 24, 24, 74], ["Summit photos", "art", 100, 48, 24, 1, 20, 50]]),
+    ["MALM 6-drawer tall chest", "dresser", 0, 44, 18.875, 31.5, 48.375],
+    ["RIGGA clothes rack", "rack", 85.25, 48, 43.75, 20.125, 68.875], ["Jute rug 5'3 x 7'7", "rug", 36, 48, 90.5, 63, 0.5],
+    ["Yosemite panorama", "art", 128, 107, 1, 48, 30, 54], ["Park print", "art", 55, 163, 18, 1, 24, 50], ["Park print", "art", 77, 163, 18, 1, 24, 50], ["Park print", "art", 99, 163, 18, 1, 24, 50], ["Adire wall hanging", "textile", 128, 68.25, 1, 29.5, 40, 54], ["Framed topo map", "art", 0, 47.75, 1, 24, 24, 56], ["Summit photos", "art", 100, 48, 24, 1, 20, 72]]),
   layout("a1", "Corner bed, maximum storage", "most storage",
     "Bed in the south-east corner. A tall PAX wardrobe by the door takes hanging clothes, a 63 in MALM dresser sits under the window and doubles as the nightstand, and an open 5-tier rack on the west wall takes 15 to 20 pairs of shoes. Bench stays at the foot. Main walkway is 51 in; the tightest spot is 24 in in front of the wardrobe doors. The bed is reachable from one side only and the north-west corner is furniture-heavy.", [
     ["Bed", "bed", 63, 78, 66, 86, 24, 0, "S"], [BENCH, "ottoman", 64, 62, 46, 16, 18],
@@ -61,7 +61,7 @@ const BUILTIN = [
     ["KULLEN 5-drawer chest", "dresser", 113.25, 48, 15.75, 27.5, 44.125], ["MALM 2-drawer nightstand", "nightstand", 110.125, 148.25, 18.875, 15.75, 21.625],
     ["Wall shelf over bed", "other", 49, 153.75, 43.25, 10.25, 2, 60], ["Hook rail", "other", 0, 50, 3.5, 18.875, 5.5, 62],
     ["Rug 60 x 96", "rug", 14, 48, 96, 60, 0.5],
-    ["Park print", "art", 52, 163, 18, 1, 22, 63], ["Park print", "art", 73, 163, 18, 1, 22, 63], ["Adire wall hanging", "textile", 128, 85, 1, 30, 45, 40], ["Framed topo map", "art", 0, 26, 1, 20, 28, 48], ["Summit photos", "art", 102, 48, 24, 1, 20, 50], ["Summit photo", "art", 42, 0, 14, 1, 20, 50]])
+    ["Park print", "art", 52, 163, 18, 1, 22, 63], ["Park print", "art", 73, 163, 18, 1, 22, 63], ["Adire wall hanging", "textile", 128, 85, 1, 30, 45, 40], ["Framed topo map", "art", 0, 44, 1, 20, 28, 72], ["Summit photos", "art", 102, 48, 24, 1, 20, 50], ["Summit photo", "art", 42, 0, 14, 1, 20, 50]])
 ];
 const WALLS = { N: "North", E: "East", S: "South", W: "West" };
 const ENDS = { N: ["W", "E"], E: ["N", "S"], S: ["E", "W"], W: ["S", "N"] };
@@ -208,20 +208,45 @@ function swingGeom(o) {
   return { hx, hy, fx, fy, ox: hx + s.nx * dir * o.w, oy: hy + s.ny * dir * o.w, r: o.w, inward: dir === 1 };
 }
 // True when an item sits inside the quarter circle a door sweeps through.
+// True when a box overlaps the quarter circle a hinged door sweeps through.
+function inQuarter(it, g) {
+  const qx0 = Math.min(g.hx, g.fx, g.ox), qx1 = Math.max(g.hx, g.fx, g.ox);
+  const qy0 = Math.min(g.hy, g.fy, g.oy), qy1 = Math.max(g.hy, g.fy, g.oy);
+  const x0 = Math.max(it.x, qx0), x1 = Math.min(it.x + it.w, qx1);
+  const y0 = Math.max(it.y, qy0), y1 = Math.min(it.y + it.d, qy1);
+  if (x0 >= x1 || y0 >= y1) return false;
+  const px = Math.min(Math.max(g.hx, x0), x1), py = Math.min(Math.max(g.hy, y0), y1);
+  return Math.hypot(px - g.hx, py - g.hy) < g.r - 0.01;
+}
+// True when an item sits where a room door swings.
 function inSwing(it) {
   return it.solid && state.openings.some(o => {
     const g = swingGeom(o);
-    if (!g || !g.inward || it.z >= o.sill + o.h) return false;
-    const qx0 = Math.min(g.hx, g.fx, g.ox), qx1 = Math.max(g.hx, g.fx, g.ox);
-    const qy0 = Math.min(g.hy, g.fy, g.oy), qy1 = Math.max(g.hy, g.fy, g.oy);
-    const x0 = Math.max(it.x, qx0), x1 = Math.min(it.x + it.w, qx1);
-    const y0 = Math.max(it.y, qy0), y1 = Math.min(it.y + it.d, qy1);
-    if (x0 >= x1 || y0 >= y1) return false;
-    const px = Math.min(Math.max(g.hx, x0), x1), py = Math.min(Math.max(g.hy, y0), y1);
-    return Math.hypot(px - g.hx, py - g.hy) < g.r - 0.01;
+    return g && g.inward && it.z < o.sill + o.h && inQuarter(it, g);
   });
 }
-const isBad = it => outside(it) || blockers(it).length > 0 || inSwing(it);
+// A wardrobe has a hinged door for about every 20 in of front, in pairs hinged on their outer
+// edges; each sweeps a quarter circle as wide as the door. Same shape as swingGeom's result.
+function wardrobeSwings(w) {
+  if (kindOf(w) !== "wardrobe" || /sliding|nordkisa/i.test(w.name)) return [];
+  const face = frontDir(w), across = face === "N" || face === "S" ? w.w : w.d;
+  const doors = Math.max(1, Math.round(across / 20)), dw = across / doors;
+  // where the front edge starts on the viewer's left, which way it runs, and which way is out
+  const [x0, y0, ux, uy, nx, ny] = {
+    S: [w.x, w.y + w.d, 1, 0, 0, 1], N: [w.x + w.w, w.y, -1, 0, 0, -1],
+    E: [w.x + w.w, w.y + w.d, 0, -1, 1, 0], W: [w.x, w.y, 0, 1, -1, 0]
+  }[face];
+  const at = t => [x0 + ux * t, y0 + uy * t];
+  return [...Array(doors)].map((_, i) => {
+    const [hx, hy] = at(i % 2 ? (i + 1) * dw : i * dw), [fx, fy] = at(i % 2 ? i * dw : (i + 1) * dw);
+    return { hx, hy, fx, fy, ox: hx + nx * dw, oy: hy + ny * dw, r: dw, inward: true };
+  });
+}
+// True when an item stands where another piece's wardrobe doors open.
+function inWardrobeSwing(it) {
+  return it.solid && state.items.some(w => w !== it && it.z < w.z + w.h && wardrobeSwings(w).some(g => inQuarter(it, g)));
+}
+const isBad = it => outside(it) || blockers(it).length > 0 || inSwing(it) || inWardrobeSwing(it);
 // Position along a wall as seen from inside the room, left to right.
 function alongWall(wall, start, size) {
   const r = state.room;
@@ -363,7 +388,7 @@ const SIDEBAR = `<div class="card" id="selCard"></div>
 </div>
 <div class="card">
   <h2>Keys and rules</h2>
-  <p class="hint" id="keysHint" style="margin:0">Arrow keys nudge 1″ (Shift = 6″), R rotates, Delete removes, Esc deselects. Solid pieces stop at walls and at each other. A red dashed outline means a piece blocks a door swing or overlaps something.</p>
+  <p class="hint" id="keysHint" style="margin:0">Arrow keys nudge 1″ (Shift = 6″), R rotates, Delete removes, Esc deselects. Solid pieces stop at walls and at each other. A red dashed outline means a piece blocks a door swing, a room door's or a wardrobe's, or overlaps something.</p>
 </div>`;
 const OPPOSITE = { N: "S", E: "W", S: "N", W: "E" };
 // Which way a piece's front points. Beds face away from the headboard; everything else faces

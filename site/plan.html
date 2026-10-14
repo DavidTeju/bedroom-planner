@@ -53,6 +53,7 @@
   .ev.far { fill-opacity: .04; stroke-width: 1; stroke-opacity: .3; stroke-dasharray: 2 4; }
   .ev.sel { stroke: var(--accent); stroke-opacity: 1; stroke-width: 2.5; }
   .lab-far { fill: var(--muted); opacity: .55; }
+  .wardrobe-swing { stroke: var(--muted); fill: var(--muted); }
   .swing { stroke-width: 1.5; vector-effect: non-scaling-stroke; fill-opacity: .08; stroke-dasharray: 5 3; }
   .leaf { stroke-width: 2.5; vector-effect: non-scaling-stroke; }
   .clear { stroke: var(--accent); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 3 3; }
@@ -221,6 +222,11 @@ function planSvg() {
       if ((turn ? it.w : it.d) >= 16) g += `<text class="t-muted" y="5" font-size="3.4" text-anchor="middle">${n(it.w)} × ${n(it.d)}</text>`;
       g += `</g>`;
     }
+  }
+  // the floor each wardrobe door sweeps over
+  for (const w of state.items) for (const sw of wardrobeSwings(w)) {
+    const cross = (sw.fx - sw.hx) * (sw.oy - sw.hy) - (sw.fy - sw.hy) * (sw.ox - sw.hx);
+    g += `<path class="swing wardrobe-swing" pointer-events="none" d="M${sw.hx} ${sw.hy}L${sw.fx} ${sw.fy}A${sw.r} ${sw.r} 0 0 ${cross > 0 ? 1 : 0} ${sw.ox} ${sw.oy}Z"/>`;
   }
   g += `<polygon class="wall" points="${poly}" pointer-events="none"/>`;
   for (const o of state.openings) {
