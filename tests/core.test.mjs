@@ -147,8 +147,23 @@ test("the window-facing layout has a nightstand by the head of the bed on its op
       againstBed: n.y + n.d === bed.y,
       byHead: n.x + n.w === bed.x + bed.w,
       topNearMattress: Math.abs(n.z + n.h - bed.h) <= 3,
+      onFloor: n.z === 0,
       blocked: isBad(n)
     })));
   })()`));
-  assert.deepEqual(out, [{ againstBed: true, byHead: true, topNearMattress: true, blocked: false }]);
+  assert.deepEqual(out, [{ againstBed: true, byHead: true, topNearMattress: true, onFloor: true, blocked: false }]);
+});
+
+test("the centred layout has a short chest west of the bed, under the window sill", () => {
+  const run = loadCore();
+  const out = JSON.parse(run(`(() => {
+    const plan = BUILTIN.find(p => p.name === "Centred bed, both sides open");
+    const bed = plan.items.find(i => i.kind === "bed"), win = state.openings.find(o => o.id === "window");
+    return JSON.stringify(plan.items.filter(i => i.kind === "dresser" && i.x + i.w <= bed.x).map(i => ({
+      onWestWall: i.x === 0,
+      underWindow: i.y >= win.off && i.y + i.d <= win.off + win.w + 0.01,
+      belowSill: i.z + i.h < win.sill
+    })));
+  })()`));
+  assert.deepEqual(out, [{ onWestWall: true, underWindow: true, belowSill: true }]);
 });
