@@ -116,6 +116,7 @@ function planDeco(it) {
       for (let a = 1; a < 4; a++) g += longX ? seg(x + 1, y + d * a / 4, x + w - 1, y + d * a / 4) : seg(x + w * a / 4, y + 1, x + w * a / 4, y + d - 1);
     } else if (k === "chair") g += box(x + 5, y + 5, w - 10, d - 10, "deco-fill", 4);
     else if (k === "plant" || k === "lamp") g += `<circle class="deco-fill" cx="${x + w / 2}" cy="${y + d / 2}" r="${Math.min(w, d) / 2 - 1}"/>`;
+    else if (k === "sconce") g += `<circle class="deco-fill" cx="${x + w / 2}" cy="${y + d / 2}" r="${Math.max(w, d) / 2}"/>`;
     else if (k === "dresser" || k === "nightstand" || k === "shoe" || k === "shelf") g += box(x + 1.2, y + 1.2, w - 2.4, d - 2.4);
   }
   return `<g pointer-events="none">${g}</g>`;
@@ -150,6 +151,7 @@ function elevDeco(p, x, y, w, h) {
   } else if (k === "ottoman" && h > 6) g += seg(x, y + 4.5, x + w, y + 4.5) + box(x + 1.5, y + h - 1.6, 2, 1.6, "deco-dark") + box(x + w - 3.5, y + h - 1.6, 2, 1.6, "deco-dark");
   else if (k === "bench" && h > 6) g += seg(x, y + 3, x + w, y + 3) + seg(x + 3, y + 3, x + 3, y + h) + seg(x + w - 3, y + 3, x + w - 3, y + h);
   else if (k === "chair" && h > 12) g += seg(x, y + h * 0.55, x + w, y + h * 0.55) + box(x + 3, y + 2, w - 6, h * 0.55 - 4, "deco", 3);
+  else if (k === "sconce" && h > 4) g += box(x + w / 2 - 1, y + h * 0.5, 2, h * 0.45, "deco-dark") + `<polygon class="deco-fill" points="${x + 0.5},${y + h * 0.5} ${x + w - 0.5},${y + h * 0.5} ${x + w * 0.72},${y} ${x + w * 0.28},${y}"/>`;
   else if (k === "art" && w > 6) {
     // frame, mat, and a small ridge-and-sun picture
     const ix = x + 3, iy = y + 3, iw = w - 6, ih = h - 6;

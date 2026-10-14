@@ -50,7 +50,7 @@
       <button data-view="S">South wall</button><button data-view="W">West wall</button>
       <button data-view="inside">Stand inside</button><i></i>
       <button id="wallBtn"></button>
-      <button data-toggle="grid">Grid</button><button data-toggle="swings">Door swings</button><button data-toggle="names">Names</button>
+      <button data-toggle="grid">Grid</button><button data-toggle="swings">Door swings</button><button data-toggle="names">Names</button><button data-toggle="lamps">Lamps only</button>
     </div>
     <p id="help">Drag a piece to move it · Shift-drag to raise or lower it · drag empty space to orbit · scroll to zoom · right-drag to pan · click a door to open it</p>
     <div id="tip" hidden></div>
@@ -98,7 +98,8 @@ controls.maxPolarAngle = Math.PI / 2 - 0.03;
 controls.minDistance = 10;
 controls.maxDistance = 1400;
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0xb9a88a, 0.85));
+const hemi = new THREE.HemisphereLight(0xffffff, 0xb9a88a, 0.85);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff0dc, 2.3);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -154,6 +155,7 @@ const TRIM = M("#fbfaf6", 0.55), WALL = M("#f1ede3", 0.95), LINEN = M("#f4f1ea",
 const MIRROR = new THREE.MeshStandardMaterial({ color: 0xe6edf2, roughness: 0.03, metalness: 1, envMapIntensity: 2.2 });
 const GLASS = new THREE.MeshStandardMaterial({ color: 0xcfe8f5, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.28 });
 const SKY = new THREE.MeshBasicMaterial({ color: 0xd9ecf7 });
+const SHADE = new THREE.MeshStandardMaterial({ color: 0xfff3d6, emissive: 0xffcf7a, emissiveIntensity: 0.55, roughness: 1 });
 
 // Box whose (x, z) is its centre and y its underside.
 function bxm(g, w, h, d, x, y, z, m, round = 0) {
@@ -581,7 +583,15 @@ const MODELS = {
     const rad = Math.min(a, dp) / 2, shadeH = Math.min(h * 0.3, 10);
     cyl(g, rad * 0.55, rad * 0.65, 1, 0, 0.5, 0, DARK_METAL, "y", 24);
     cyl(g, 0.4, 0.4, h - shadeH, 0, (h - shadeH) / 2, 0, DARK_METAL);
-    cyl(g, rad * 0.6, rad, shadeH, 0, h - shadeH / 2, 0, cached("lampshade", () => new THREE.MeshStandardMaterial({ color: 0xfff3d6, emissive: 0xffcf7a, emissiveIntensity: 0.55, roughness: 1 })), "y", 24);
+    cyl(g, rad * 0.6, rad, shadeH, 0, h - shadeH / 2, 0, SHADE, "y", 24);
+  },
+  // Plug-in swing-arm sconce: a wall plate, an arm reaching out and a shade over the bed.
+  sconce(g, { a, dp, h }) {
+    const rad = Math.min(a / 2, 3), shadeH = Math.min(h * 0.45, 5.5), reach = dp / 2 + rad * 0.6;
+    bxm(g, Math.min(a * 0.45, 2.6), Math.min(h * 0.45, 4.5), 0.6, 0, h * 0.2, -dp / 2 + 0.3, BRASS, 0.2);
+    cyl(g, 0.3, 0.3, reach + dp / 2, 0, h * 0.42, (reach - dp / 2) / 2, BRASS, "z");
+    cyl(g, 0.3, 0.3, h - shadeH - h * 0.42, 0, (h * 0.42 + h - shadeH) / 2, reach, BRASS);
+    cyl(g, rad * 0.55, rad, shadeH, 0, h - shadeH / 2, reach, SHADE, "y", 24);
   },
   plant(g, { a, dp, h, r }) {
     const rad = Math.min(a, dp) / 2, potH = Math.min(h * 0.3, 11), leaf = cached("leaf", () => new THREE.MeshStandardMaterial({ color: 0x4f8a5b, roughness: 0.9, flatShading: true }));
@@ -623,11 +633,12 @@ function buildItem(it, face) {
 /* ---------- room ---------- */
 const roomG = new THREE.Group(), itemsG = new THREE.Group(), pickG = new THREE.Group(), overlayG = new THREE.Group();
 const gridG = new THREE.Group(), swingG = new THREE.Group(), ceilingG = new THREE.Group();
-scene.add(roomG, itemsG, pickG, overlayG);
+const lampG = new THREE.Group();
+scene.add(roomG, itemsG, pickG, overlayG, lampG);
 const WALL_T = 4.5;
 let wallSegs = [], doorLeaves = [], doorPivots = [];
 const doorOpen = {}; // opening id -> { t: how far open, 0..1, want: 0 or 1 }
-const show = { grid: false, swings: true, names: false };
+const show = { grid: false, swings: true, names: false, lamps: false };
 let wallMode = "auto";
 
 const floorMat = new THREE.MeshStandardMaterial({ roughness: 0.55, map: (() => {
@@ -788,6 +799,29 @@ function updateWalls() {
   gridG.visible = show.grid; swingG.visible = show.swings;
 }
 
+/* ---------- lamps only: daylight and the ceiling fixture off, every lamp and sconce on ---------- */
+const FACE_STEP = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
+function lamplight() {
+  const night = show.lamps;
+  hemi.intensity = night ? 0.05 : 0.85;
+  sun.intensity = night ? 0 : 2.3;
+  scene.environmentIntensity = night ? 0.03 : 0.5;
+  SHADE.emissiveIntensity = night ? 2.4 : 0.55;
+  SKY.color.set(night ? 0x1c2534 : 0xd9ecf7);
+  if (matCache.has("fixture")) matCache.get("fixture").emissiveIntensity = night ? 0 : 0.9;
+  for (const l of [...lampG.children]) { l.dispose(); lampG.remove(l); }
+  if (!night) return;
+  for (const it of state.items) {
+    const k = kindOf(it);
+    if (k !== "lamp" && k !== "sconce") continue;
+    const floor = k === "lamp" && it.z === 0 && it.h >= 40, small = k === "lamp" && !floor && it.h < 12;
+    const light = new THREE.PointLight(0xffc98a, floor ? 9000 : k === "sconce" ? 3500 : small ? 250 : 1400, 0, 2);
+    const [dx, dz] = k === "sconce" ? FACE_STEP[frontDir(it)] : [0, 0];
+    light.position.set(it.x + it.w / 2 + dx * 4, it.z + it.h * (k === "sconce" ? 0.7 : 0.82), it.y + it.d / 2 + dz * 4);
+    lampG.add(light);
+  }
+}
+
 /* ---------- keeping the scene in step with the layout ---------- */
 const built = new Map(); // item id -> { key, group }
 let roomKey = "";
@@ -827,6 +861,7 @@ function sync() {
     seen.add(it.id);
   }
   for (const [id, b] of built) if (!seen.has(id)) { wipe(b.group); itemsG.remove(b.group); built.delete(id); }
+  lamplight();
 
   wipe(pickG); wipe(overlayG);
   for (const it of state.items) {

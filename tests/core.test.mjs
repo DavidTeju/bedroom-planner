@@ -167,3 +167,51 @@ test("the centred layout has a short chest west of the bed, under the window sil
   })()`));
   assert.deepEqual(out, [{ onWestWall: true, underWindow: true, belowSill: true }]);
 });
+
+test("every ready-made layout is lit by lamps alone: a floor lamp and nothing on the ceiling", () => {
+  const run = loadCore();
+  const out = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => {
+    const lights = p.items.filter(i => i.kind === "lamp" || i.kind === "sconce");
+    return {
+      name: p.name,
+      floorLamp: lights.some(i => i.kind === "lamp" && i.z === 0 && i.h >= 55),
+      onCeiling: lights.filter(i => i.z + i.h >= state.room.H - 6).map(i => i.name)
+    };
+  }))`));
+  for (const p of out) assert.deepEqual(p, { name: p.name, floorLamp: true, onCeiling: [] });
+});
+
+test("every open side of the bed has a reading light at the head", () => {
+  const run = loadCore();
+  const out = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => {
+    state.items = p.items;
+    const bed = p.items.find(i => i.kind === "bed"), c = clearances(bed), flush = state.room.flush;
+    const head = bed.headSide, along = head === "N" || head === "S";
+    const headLine = { N: bed.y, S: bed.y + bed.d, W: bed.x, E: bed.x + bed.w }[head];
+    const sides = along ? [["W", bed.x], ["E", bed.x + bed.w]] : [["N", bed.y], ["S", bed.y + bed.d]];
+    const lights = p.items.filter(i => (i.kind === "lamp" || i.kind === "sconce") && i.z >= 20);
+    const unlit = sides.filter(([s]) => c[s] > flush).filter(([, edge]) => !lights.some(l => {
+      const cx = l.x + l.w / 2, cy = l.y + l.d / 2;
+      const corner = along ? [edge, headLine] : [headLine, edge];
+      return Math.hypot(cx - corner[0], cy - corner[1]) <= 20;
+    })).map(([s]) => s);
+    return { name: p.name, unlit };
+  }))`));
+  for (const p of out) assert.deepEqual(p, { name: p.name, unlit: [] });
+});
+
+test("a plug-in sconce is a thin wall piece that both views draw", () => {
+  const run = loadCore();
+  assert.equal(run(`KINDS.sconce`), "Wall sconce");
+  assert.equal(run(`kindOf({ name: "Plug-in swing-arm sconce" })`), "sconce");
+  const sconces = JSON.parse(run(`JSON.stringify(BUILTIN.flatMap(p => { state.items = p.items; return p.items.filter(i => i.kind === "sconce").map(i => {
+    const c = clearances(i); return { thin: Math.min(i.w, i.d) <= 4, onWall: Math.min(c.N, c.S, c.E, c.W) <= state.room.flush, raised: i.z > 0 }; }); }))`));
+  assert.ok(sconces.length > 0, "some layout uses a sconce");
+  for (const s of sconces) assert.deepEqual(s, { thin: true, onWall: true, raised: true });
+  assert.match(read("index.html"), /^\s+sconce\(g,/m, "the 3D view has a sconce model");
+  assert.match(read("plan.html"), /k === "sconce"/, "the 2D plan draws sconces");
+});
+
+test("the 3D view can switch the room to lamplight", () => {
+  assert.match(read("index.html"), /data-toggle="lamps"/);
+});
