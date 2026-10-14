@@ -351,7 +351,7 @@ function drawViews() {
   const lr = showLight && lastLight;
   $("#legend").innerHTML = `<button id="lightBtn" class="${showLight ? "on" : ""}">Light map, lamps only</button>` + (lr
     ? `<span><span class="lux-scale"></span>10 → 1000 lux at 30″</span><span>Reading spots ${lr.reading.map(s => Math.round(s.lux)).join(" / ")} lux (aim ${READ_LUX}+)</span>
-       <span>Room average ${Math.round(lr.avg)} lux, darkest tenth ${Math.round(lr.p10)} (aim ${ROOM_LUX}+)</span><span>Bulbs: Tapo L535E, 1100 lm, in the floor lamp and sconces; your own lamps are guesses</span>`
+       <span>Room average ${Math.round(lr.avg)} lux, darkest tenth ${Math.round(lr.p10)} (aim ${ROOM_LUX}+)</span><span>Bulbs: Tapo L535E, 1100 lm, in every lamp but the PELARBOJ</span>`
     : "") + `<b>Wall views:</b>
     <span><i></i>on the wall (within ${n(r.flush)}″)</span>
     <span><i class="near"></i>close (within ${n(r.near)}″)</span>

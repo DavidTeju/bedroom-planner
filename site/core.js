@@ -256,17 +256,15 @@ function inWardrobeSwing(it) {
 const isBad = it => outside(it) || blockers(it).length > 0 || inSwing(it) || inWardrobeSwing(it);
 
 /* ---------- light: an estimate of how bright each spot is with only the lamps on ---------- */
-// Lumens per light and the share its shade sends downward. Floor lamps and sconces take Femi's
-// Tapo L535E smart bulb (1100 lm, E26, 2500-6500K); his own small lamps are rough guesses.
+// Lumens per light and the share its shade sends downward. Every lamp with a socket takes Femi's
+// Tapo L535E smart bulb (1100 lm, E26, 2500-6500K); the PELARBOJ has its own built-in LED.
 function lightSpec(it) {
   const nm = it.name.toLowerCase();
   if (it.lm > 0) return { lm: it.lm, down: it.down ?? 0.5 };
   if (/pelarboj/.test(nm)) return { lm: 25, down: 0.5 };
-  if (/mika/.test(nm)) return { lm: 300, down: 0.5 };
-  if (/böja|boja/.test(nm)) return { lm: 450, down: 0.5 };
   if (kindOf(it) === "sconce") return { lm: 1100, down: 0.8 };
   if (it.z === 0 && it.h >= 40) return { lm: 1100, down: 0.45 };
-  return { lm: 800, down: 0.5 };
+  return { lm: 1100, down: 0.5 };
 }
 const LIGHT_STEP = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 // Where each bulb sits: inside the shade, or just off the wall for a sconce.

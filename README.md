@@ -20,7 +20,8 @@ open edge, 14 in from the head, 8 in above the mattress). Direct light follows t
 and cosine laws from each bulb, with each shade sending a set share downward and solid furniture
 casting shadows. Light bounced off the room is added evenly, treating the room as an integrating
 sphere with 50% average reflectance and 85% luminaire efficiency. The floor lamp and sconces
-assume Femi's Tapo L535E smart bulb (1100 lm, E26); Femi's own small lamps are guesses. The targets in the
+assume Femi's Tapo L535E smart bulb (1100 lm, E26), and so do his BÖJA and Mika; only
+the PELARBOJ, which has a built-in LED, is a guess. The targets in the
 tests are 300 lux at each reading spot and a 50 lux room average. It is an estimate for
 comparing layouts, not a photometric survey.
 

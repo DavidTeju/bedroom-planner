@@ -274,3 +274,9 @@ test("lamps-only mode lets the bulbs be any white temperature or any colour", ()
   assert.match(html, /id="kelvin"[^>]*min="2500"[^>]*max="6500"/);
   assert.match(html, /id="bulbColor"[^>]*type="color"|type="color"[^>]*id="bulbColor"/);
 });
+
+test("every lamp that takes a bulb gets Femi's 1100 lm Tapo L535E", () => {
+  const run = loadCore();
+  const lm = JSON.parse(run(`JSON.stringify(Object.fromEntries(BUILTIN[1].items.filter(i => i.kind === "lamp" || i.kind === "sconce").map(i => [i.name, lightSpec(i).lm])))`));
+  assert.deepEqual(lm, { "Floor lamp": 1100, "Plug-in swing-arm sconce": 1100, "BÖJA table lamp (yours)": 1100, "Mika cactus lamp (yours)": 1100, "PELARBOJ glow lamp (yours)": 25 });
+});
