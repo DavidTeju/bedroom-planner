@@ -21,7 +21,7 @@
     background: linear-gradient(#eef1f3, #e4e0d5); }
   #stage canvas { display: block; touch-action: none; outline: none; }
   #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-  .bar { position: absolute; left: 10px; right: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
+  .bar { position: absolute; left: 10px; right: 10px; top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; pointer-events: none; }
   .bar button { pointer-events: auto; background: rgba(255, 253, 248, .93); padding: 4px 9px; font-size: 12px; }
   .bar button.on { border-color: var(--accent); color: var(--accent); }
   .bar select { pointer-events: auto; width: auto; background: rgba(255, 253, 248, .93); padding: 4px 6px; font-size: 12px; }
@@ -34,15 +34,34 @@
   .bar .menu > div { position: absolute; top: calc(100% + 4px); left: 0; z-index: 2; background: var(--panel); border: 1px solid var(--line);
     border-radius: 8px; padding: 8px 12px 0; box-shadow: 0 4px 14px rgba(0, 0, 0, .12); white-space: nowrap; }
   .bar .menu label.check { color: var(--ink); font-size: 13px; }
-  .bar .bulb { pointer-events: auto; display: inline-flex; align-items: center; gap: 10px; background: rgba(255, 253, 248, .93); border: 1px solid var(--line);
-    border-radius: 6px; padding: 2px 9px; font-size: 12px; }
-  .bar .bulb[hidden] { display: none; }
-  .bar .bulb label { display: inline-flex; align-items: center; gap: 5px; }
-  .bar .bulb input[type=range] { width: 110px; }
-  .bar .bulb input[type=color] { width: 26px; height: 20px; padding: 0; border: none; background: none; }
-  .bar .bulb b { min-width: 40px; font-weight: 600; }
-  .bar .bulb[data-mode=white] label:first-child, .bar .bulb[data-mode=colour] label:last-child { color: var(--accent); }
-  .bar i { width: 6px; }
+  /* Simulate lights and its bulb settings read as one control. */
+  .bar .lights { pointer-events: auto; display: inline-flex; align-items: center; flex-wrap: wrap; background: rgba(255, 253, 248, .93);
+    border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .bar .lights > button { border: none; border-radius: 0; background: none; display: inline-flex; align-items: center; gap: 6px; }
+  .bar .lights > button.on { background: #fff3d1; color: #7a4d00; }
+  .lights .glow { width: 9px; height: 9px; border-radius: 50%; background: #c9c3b5; }
+  .lights button.on .glow { background: var(--bulb, #ffc46b); box-shadow: 0 0 6px 2px var(--bulb, #ffc46b); }
+  .lights .bulb { display: inline-flex; align-items: center; gap: 8px; padding: 3px 9px; border-left: 1px solid var(--line); font-size: 12px; }
+  .lights .bulb[hidden] { display: none; }
+  .lights .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+  .bar .lights .seg button { border: none; border-radius: 0; background: none; padding: 2px 8px; font-size: 12px; }
+  .bar .lights .seg button.on { background: var(--accent); color: #fff; }
+  .lights .bulb[data-mode=white] .colour-only, .lights .bulb[data-mode=colour] .white-only { display: none; }
+  .lights input[type=range] { -webkit-appearance: none; appearance: none; width: 120px; height: 8px; padding: 0; border: none; border-radius: 4px;
+    background: var(--kelvin-track); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .14); }
+  .lights input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #fff;
+    border: 1px solid #8a8577; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); cursor: pointer; }
+  .lights input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 1px solid #8a8577; cursor: pointer; }
+  .lights input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: var(--kelvin-track); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .14); }
+  .lights .bulb b { min-width: 42px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .lights input[type=color] { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; padding: 0; border: 1px solid var(--line);
+    border-radius: 50%; background: none; cursor: pointer; }
+  .lights input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+  .lights input[type=color]::-webkit-color-swatch { border: none; border-radius: 50%; }
+  .lights input[type=color]::-moz-color-swatch { border: none; border-radius: 50%; }
+  /* Narrow screens put the bulb settings on a second line inside the group. */
+  @media (max-width: 760px) { .lights .bulb { flex-basis: 100%; border-left: none; border-top: 1px solid var(--line); }
+    .bar .lights > button { flex: 1; } .lights input[type=range] { flex: 1; width: auto; } }
   #help { position: absolute; left: 10px; right: 10px; bottom: 8px; margin: 0; font-size: 12px; color: var(--muted); pointer-events: none;
     text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
   #tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 12px; padding: 3px 7px; border-radius: 5px;
@@ -92,8 +111,10 @@
       <select id="viewSel" aria-label="View"><option value="3d">3D</option><option value="top">Top</option><option value="N">North wall</option><option value="E">East wall</option><option value="S">South wall</option><option value="W">West wall</option><option value="inside">Stand inside</option><option value="" hidden>Your view</option></select>
       <button id="wallBtn"></button>
       <details id="showMenu" class="menu"><summary>Show</summary><div><label class="check"><input type="checkbox" data-toggle="grid"> Grid</label><label class="check"><input type="checkbox" data-toggle="swings"> Door swings</label><label class="check"><input type="checkbox" data-toggle="names"> Names</label></div></details>
-      <button data-toggle="lamps">Simulate lights</button>
-      <span id="bulbCtl" class="bulb" hidden><label>White <input id="kelvin" type="range" min="2500" max="6500" step="100" value="2700"><b id="kelvinVal">2700K</b></label><label>or colour <input id="bulbColor" type="color" value="#ff4fa3"></label></span>
+      <span class="lights"><button data-toggle="lamps"><i class="glow"></i>Simulate lights</button><span id="bulbCtl" class="bulb" hidden>
+        <span class="seg" role="group" aria-label="Bulb"><button data-bulb-mode="white">White</button><button data-bulb-mode="colour">Colour</button></span>
+        <input class="white-only" id="kelvin" type="range" min="2500" max="6500" step="100" value="2700" aria-label="White temperature"><b class="white-only" id="kelvinVal">2700K</b>
+        <input class="colour-only" id="bulbColor" type="color" value="#ff4fa3" aria-label="Bulb colour"></span></span>
     </div>
     <p id="help">Drag a piece to move it · Shift-drag to raise or lower it · drag empty space to orbit · scroll to zoom · right-drag to pan · click a door to open it</p>
     <div id="tip" hidden></div>
@@ -885,7 +906,18 @@ function drawBulb() {
   document.getElementById("kelvinVal").textContent = bulb.kelvin + "K";
   document.getElementById("bulbColor").value = bulb.rgb;
   box.dataset.mode = bulb.mode;
+  for (const b of box.querySelectorAll("[data-bulb-mode]")) b.classList.toggle("on", b.dataset.bulbMode === bulb.mode);
+  // the switch's dot glows in the bulbs' colour
+  const [r, g, b] = bulb.mode === "white" ? kelvinRGB(bulb.kelvin) : [1, 3, 5].map(i => parseInt(bulb.rgb.slice(i, i + 2), 16));
+  box.parentElement.style.setProperty("--bulb", `rgb(${r} ${g} ${b})`);
 }
+// The temperature slider's track runs through the whites it picks, warm to cool.
+document.getElementById("kelvin").style.setProperty("--kelvin-track",
+  `linear-gradient(to right, ${[2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500].map(k => `rgb(${kelvinRGB(k).join(" ")})`).join(", ")})`);
+document.getElementById("bulbCtl").addEventListener("click", e => {
+  const mode = e.target.dataset.bulbMode;
+  if (mode) setBulb({ mode });
+});
 document.getElementById("kelvin").addEventListener("input", e => setBulb({ mode: "white", kelvin: +e.target.value }));
 document.getElementById("bulbColor").addEventListener("input", e => setBulb({ mode: "colour", rgb: e.target.value }));
 

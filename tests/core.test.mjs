@@ -316,6 +316,16 @@ test("the 3D toolbar has a view picker, a show menu and a simulate-lights switch
   assert.doesNotMatch(html, /data-view=/);
   const menu = html.match(/<details id="showMenu"[\s\S]*?<\/details>/)[0];
   assert.deepEqual([...menu.matchAll(/data-toggle="(\w+)"/g)].map(m => m[1]), ["grid", "swings", "names"]);
-  assert.match(html, /<button data-toggle="lamps">Simulate lights<\/button>/);
+  assert.match(html, /<button data-toggle="lamps"><i class="glow"><\/i>Simulate lights<\/button>/);
   assert.doesNotMatch(html, /Lamps only/);
+});
+
+test("the simulate-lights switch keeps its bulb controls beside it without stretching the toolbar", () => {
+  const html = read("index.html");
+  // A flex row stretches every item to the tallest one unless told otherwise.
+  assert.match(html, /\.bar \{[^}]*align-items: center/);
+  const group = html.match(/<span class="lights">[\s\S]*?<\/span><\/span>/)[0];
+  assert.match(group, /data-toggle="lamps"/);
+  assert.match(group, /id="bulbCtl"/);
+  assert.deepEqual([...group.matchAll(/data-bulb-mode="(\w+)"/g)].map(m => m[1]), ["white", "colour"]);
 });
