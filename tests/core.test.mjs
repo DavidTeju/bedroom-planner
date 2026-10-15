@@ -641,14 +641,32 @@ test("both views show the photo in a frame, and the Selected panel can swap it",
   assert.match(core, /data-k="photo"/, "a photo picker for art pieces");
 });
 
-test("in 3D the photos are pixelated and posterized to match the flat-shaded room", () => {
+test("in 3D the photos are painted: smooth flat strokes with sharp edges, blended rather than blocky", () => {
   const html = read("index.html");
   const mat = html.match(/^const photoMat = [\s\S]*?^\}\);$/m);
   assert.ok(mat, "photoMat is defined");
-  assert.match(html, /^const PRINT_PIXELS_PER_INCH = \d+(\.\d+)?;/m, "one pixel size for every frame");
-  assert.match(mat[0], /NearestFilter/, "blocky pixels, not blurred ones");
-  assert.match(mat[0], /PRINT_LEVELS/, "colours reduced to a few levels per channel");
-  assert.match(html.match(/^\s{2}art\(g, \{[\s\S]*?^\s{2}\},$/m)[0], /photoMat\(p\.key, p\.w, p\.h\)/, "each pane is pixelated at its real size");
+  assert.match(html, /^const PRINT_PIXELS_PER_INCH = \d+(\.\d+)?;/m, "one level of detail for every frame");
+  assert.match(mat[0], /kuwahara\(/, "painted with the brush-stroke filter");
+  assert.doesNotMatch(mat[0], /NearestFilter|PRINT_LEVELS/, "no square blocks or banded colour");
+  assert.match(html.match(/^\s{2}art\(g, \{[\s\S]*?^\s{2}\},$/m)[0], /photoMat\(p\.key, p\.w, p\.h\)/, "each pane is painted at its real size");
+});
+
+test("the brush-stroke filter flattens noise, keeps edges sharp and never wraps round the image", () => {
+  const kuwahara = pageFn("kuwahara"), w = 24, h = 12;
+  const img = (f) => { const d = new Uint8ClampedArray(w * h * 4); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const v = f(x, y), i = (y * w + x) * 4; d.set([v, v, v, 255], i); } return d; };
+  const at = (d, x, y) => d[(y * w + x) * 4];
+  // a hard edge stays hard: no grey ramp across it
+  const edge = kuwahara(img(x => (x < 12 ? 20 : 220)), w, h, 4);
+  for (let y = 0; y < h; y++) { assert.equal(at(edge, 11, y), 20); assert.equal(at(edge, 12, y), 220); }
+  // speckle on a flat area is smoothed away
+  const r = (x, y) => ((x * 7919 + y * 104729) % 41) - 20;
+  const noisy = img((x, y) => 128 + r(x, y)), out = kuwahara(noisy, w, h, 4);
+  const spread = d => { let lo = 255, hi = 0; for (let y = 3; y < h - 3; y++) for (let x = 3; x < w - 3; x++) { lo = Math.min(lo, at(d, x, y)); hi = Math.max(hi, at(d, x, y)); } return hi - lo; };
+  assert.ok(spread(out) < spread(noisy) / 2, `noise ${spread(noisy)} -> ${spread(out)}`);
+  // the left edge never borrows from the right: a bright right column cannot leak to x = 0
+  const side = kuwahara(img(x => (x === w - 1 ? 255 : 30)), w, h, 4);
+  for (let y = 0; y < h; y++) assert.equal(at(side, 0, y), 30);
+  assert.equal(edge[3], 255, "alpha stays opaque");
 });
 
 test("every inline script on both pages parses", async () => {
