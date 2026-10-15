@@ -3,12 +3,18 @@
 A planner for Femi's San Francisco bedroom, built from his own measurements. Inches throughout.
 
 - **Live:** https://bedroom.davidteju.dev (3D) and https://bedroom.davidteju.dev/plan.html (2D)
+- **Layout links:** https://bedroom.davidteju.dev/window/, `/corner/` and `/centred/` each open
+  one layout and have their own link preview. The sidebar's **Copy link** button copies them.
 - **3D view** (`site/index.html`): a three.js scene with modelled furniture. Drag a piece to move
-  it, Shift-drag to raise or lower it, R rotates, arrow keys nudge, click a door to open it, and
-  the toolbar switches between the 3D, top, wall and standing-inside views. **Lamps only**
+  it, Shift-drag to raise or lower it, R rotates, arrow keys nudge, click a door to open it. The
+  **View** picker switches between the 3D, top, wall and standing-inside views, and **Show**
+  turns on the grid, door swings and names. **Simulate lights**
   turns off daylight and the ceiling fixture and lights each lamp and sconce. Its bulb control sets
   every lamp to a white temperature (2500 to 6500K, the Tapo L535E's range) or any colour, and
   remembers the choice in that browser.
+- **On a phone** the 3D page is a viewer: the layouts are tabs, there is no editing panel, a drag
+  turns the room and a tap names a piece. A screen at most 760 px wide or 500 px tall counts
+  as a phone. Editing needs a wider screen.
 - **2D plan** (`site/plan.html`): floor plan plus the four walls seen from inside.
   **Light map, lamps only** overlays the lighting estimate.
 
@@ -51,6 +57,27 @@ npm test
 
 The tests load `site/core.js` in Node and cover the facing and rotation rules, the ready-made
 layouts, the bench and the lighting estimate.
+
+## Link previews
+
+`site/window/index.html` and its siblings hold each layout's preview tags and forward to
+`/?layout=window`, which opens that layout once and then clears the address. The pictures in
+`site/og/` are 1200 × 630 captures of `?shot`, a mode that shows only the room. After changing a
+layout, retake them with the server running:
+
+```bash
+for slug in window corner centred; do
+  profile=$(mktemp -d)
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --user-data-dir="$profile" \
+    --use-mock-keychain --password-store=basic --no-first-run --enable-unsafe-swiftshader --use-angle=swiftshader \
+    --hide-scrollbars --window-size=1200,630 --virtual-time-budget=15000 \
+    --screenshot="site/og/$slug.png" "http://127.0.0.1:4731/?layout=$slug&shot"
+  trash "$profile"
+done
+```
+
+`robots.txt` allows only the link pages and pictures, because some preview fetchers obey it;
+the `X-Robots-Tag: noindex` header still keeps everything out of search results.
 
 ## Deploy
 

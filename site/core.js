@@ -70,6 +70,14 @@ const BUILTIN = [
     ["BÖJA table lamp (yours)", "lamp", 116, 60, 9.75, 9.75, 9.5, 44.125], ["Mika cactus lamp (yours)", "lamp", 114, 152, 8, 8, 15, 21.625], ["PELARBOJ glow lamp (yours)", "lamp", 44.75, 6, 4.5, 4.5, 4, 57.875],
     ["Park print", "art", 52, 163, 18, 1, 22, 63], ["Park print", "art", 73, 163, 18, 1, 22, 63], ["Adire wall hanging", "textile", 128, 85, 1, 30, 45, 40], ["Framed topo map", "art", 0, 44, 1, 20, 28, 72], ["Summit photos", "art", 102, 48, 24, 1, 20, 50], ["Summit photo", "art", 40, 0, 14, 1, 20, 66]])
 ];
+// Shareable addresses. /window/ and the others are small pages with their own link preview
+// that send people on to /?layout=window, which opens that layout.
+const LINKS = { window: "b3", corner: "a1", centred: "a3" };
+const linkOf = p => { const slug = Object.keys(LINKS).find(k => LINKS[k] === p.id); return slug ? `/${slug}/` : null; };
+function linkedPlan(search) {
+  const slug = (/[?&]layout=([\w-]+)/.exec(search) || [])[1];
+  return slug && Object.hasOwn(LINKS, slug) ? BUILTIN.find(p => p.id === LINKS[slug]) : null;
+}
 const WALLS = { N: "North", E: "East", S: "South", W: "West" };
 const ENDS = { N: ["W", "E"], E: ["N", "S"], S: ["E", "W"], W: ["S", "N"] };
 const CLOCKWISE = { N: "E", E: "S", S: "W", W: "N" };
@@ -426,7 +434,7 @@ function drawPlans() {
     const armedLoad = armedKey === "load:" + p.id, armedDel = armedKey === "del:" + p.id;
     const note = armedLoad ? "click again, unsaved changes go" : armedDel ? "click again to delete"
       : p === cur ? (dirty ? "open, edited" : "open") : isSaved(p) ? p.items.length + " pieces" : p.note;
-    return `<li data-plan="${p.id}" class="${p === cur ? "cur" : ""}${armedLoad || armedDel ? " armed" : ""}">${esc(p.name)}<small>${note}</small>${isSaved(p) ? `<button class="x" data-del="${p.id}" title="Delete this plan">✕</button>` : ""}</li>`;
+    return `<li data-plan="${p.id}" class="${p === cur ? "cur" : ""}${armedLoad || armedDel ? " armed" : ""}">${esc(p.name)}<small>${note}</small>${isSaved(p) ? `<button class="x" data-del="${p.id}" title="Delete this plan">✕</button>` : ""}${linkOf(p) ? `<button class="link" data-copy="${linkOf(p)}" title="Copy a link that opens this layout">Copy link</button>` : ""}</li>`;
   };
   $("#plansBox").innerHTML = `<div class="sub">Ready-made</div><ul class="plans">${BUILTIN.map(row).join("")}</ul>
     <div class="sub">Yours</div><ul class="plans">${plans.length ? plans.map(row).join("") : `<li style="cursor:default;color:var(--muted)">None saved yet</li>`}</ul>`;
@@ -594,6 +602,13 @@ function initPlanner() {
     e.target.value = "";
   });
   $("#plansBox").addEventListener("click", e => {
+    const copy = e.target.dataset.copy;
+    if (copy) {
+      const url = location.origin + copy, b = e.target;
+      navigator.clipboard.writeText(url).then(() => { b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy link"; }, 1500); },
+        () => window.prompt("Copy this link", url));
+      return;
+    }
     const del = e.target.dataset.del;
     if (del) {
       confirmTwice("del:" + del, () => { plans = plans.filter(p => p.id !== del); savePlans(); draw(); });
@@ -629,5 +644,10 @@ function initPlanner() {
     disarmReset();
     state = structuredClone(DEFAULT); selId = null; buildRoomForm(); buildSelForm(); draw();
   });
+  // A layout link opens that layout once, then leaves the address bare so a reload keeps your edits.
+  // A first visit opens the first layout rather than an empty room.
+  const linked = linkedPlan(location.search);
+  if (linked) { openPlan(linked); history.replaceState(null, "", location.pathname + location.hash); }
+  else if (!state.planId && !isDirty()) openPlan(BUILTIN[0]);
   buildRoomForm(); buildSelForm(); draw();
 }

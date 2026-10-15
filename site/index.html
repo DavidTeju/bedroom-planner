@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bedroom planner 3D</title>
+<meta name="description" content="Three ways to lay out one 129 by 164 inch bedroom, in 3D. Turn the room, switch layouts and open the doors.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Bedroom planner">
+<meta property="og:description" content="Three ways to lay out one 129 by 164 inch bedroom, in 3D. Turn the room, switch layouts and open the doors.">
+<meta property="og:image" content="https://bedroom.davidteju.dev/og/window.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://bedroom.davidteju.dev/">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="core.css">
 <style>
   main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; padding: 6px 16px 12px; }
@@ -15,6 +24,16 @@
   .bar { position: absolute; left: 10px; right: 10px; top: 10px; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
   .bar button { pointer-events: auto; background: rgba(255, 253, 248, .93); padding: 4px 9px; font-size: 12px; }
   .bar button.on { border-color: var(--accent); color: var(--accent); }
+  .bar select { pointer-events: auto; width: auto; background: rgba(255, 253, 248, .93); padding: 4px 6px; font-size: 12px; }
+  .bar .menu { pointer-events: auto; position: relative; }
+  .bar .menu summary { list-style: none; cursor: pointer; background: rgba(255, 253, 248, .93); border: 1px solid var(--line); border-radius: 6px;
+    padding: 4px 9px; font-size: 12px; text-transform: none; letter-spacing: normal; color: var(--ink); margin: 0; }
+  .bar .menu summary::-webkit-details-marker { display: none; }
+  .bar .menu summary::after { content: " ▾"; color: var(--muted); }
+  .bar .menu[open] summary { border-color: var(--accent); }
+  .bar .menu > div { position: absolute; top: calc(100% + 4px); left: 0; z-index: 2; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 12px 0; box-shadow: 0 4px 14px rgba(0, 0, 0, .12); white-space: nowrap; }
+  .bar .menu label.check { color: var(--ink); font-size: 13px; }
   .bar .bulb { pointer-events: auto; display: inline-flex; align-items: center; gap: 10px; background: rgba(255, 253, 248, .93); border: 1px solid var(--line);
     border-radius: 6px; padding: 2px 9px; font-size: 12px; }
   .bar .bulb[hidden] { display: none; }
@@ -36,6 +55,22 @@
   #fail[hidden] { display: none; }
   #fail { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); }
   @media print { aside, header p, .bar, #help { display: none; } main { grid-template-columns: 1fr; } }
+  /* Phones get a viewer: the layouts as tabs and no editing panel. */
+  #tabs, #about { display: none; }
+  body.viewer header > p, body.viewer aside { display: none; }
+  body.viewer main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; gap: 8px; padding: 4px 10px 10px; }
+  body.viewer header { padding: 8px 10px 4px; }
+  body.viewer #tabs { display: flex; gap: 6px; width: 100%; overflow-x: auto; padding-bottom: 2px; }
+  #tabs button { flex: none; white-space: nowrap; font-size: 13px; padding: 5px 10px; background: var(--panel); }
+  #tabs button.on { border-color: var(--accent); color: var(--accent); }
+  body.viewer #about:not([hidden]) { display: block; }
+  #about { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 13px; }
+  #about summary { font-size: 13px; font-weight: 600; text-transform: none; letter-spacing: normal; color: var(--ink); margin: 0; }
+  #about p { margin: 6px 0 0; color: var(--muted); max-height: 30vh; overflow-y: auto; }
+  /* ?shot: only the room, for the link-preview pictures */
+  body.shot header, body.shot aside, body.shot .bar, body.shot #help, body.shot #labels, body.shot #about { display: none !important; }
+  body.shot main { display: block; padding: 0; }
+  body.shot #stage { height: 100%; border: none; border-radius: 0; }
 </style>
 <script type="importmap">
 { "imports": {
@@ -48,23 +83,23 @@
 <header>
   <h1>Bedroom planner · 3D</h1>
   <p>Inches throughout. Same room and saved plans as the <a href="plan.html">2D plan</a>; an edit in one shows in the other.</p>
+  <nav id="tabs" aria-label="Layouts"></nav>
 </header>
 <main>
   <div id="stage">
     <div id="labels"></div>
     <div class="bar" id="bar">
-      <button data-view="3d">3D</button><button data-view="top">Top</button>
-      <button data-view="N">North wall</button><button data-view="E">East wall</button>
-      <button data-view="S">South wall</button><button data-view="W">West wall</button>
-      <button data-view="inside">Stand inside</button><i></i>
+      <select id="viewSel" aria-label="View"><option value="3d">3D</option><option value="top">Top</option><option value="N">North wall</option><option value="E">East wall</option><option value="S">South wall</option><option value="W">West wall</option><option value="inside">Stand inside</option><option value="" hidden>Your view</option></select>
       <button id="wallBtn"></button>
-      <button data-toggle="grid">Grid</button><button data-toggle="swings">Door swings</button><button data-toggle="names">Names</button><button data-toggle="lamps">Lamps only</button>
+      <details id="showMenu" class="menu"><summary>Show</summary><div><label class="check"><input type="checkbox" data-toggle="grid"> Grid</label><label class="check"><input type="checkbox" data-toggle="swings"> Door swings</label><label class="check"><input type="checkbox" data-toggle="names"> Names</label></div></details>
+      <button data-toggle="lamps">Simulate lights</button>
       <span id="bulbCtl" class="bulb" hidden><label>White <input id="kelvin" type="range" min="2500" max="6500" step="100" value="2700"><b id="kelvinVal">2700K</b></label><label>or colour <input id="bulbColor" type="color" value="#ff4fa3"></label></span>
     </div>
     <p id="help">Drag a piece to move it · Shift-drag to raise or lower it · drag empty space to orbit · scroll to zoom · right-drag to pan · click a door to open it</p>
     <div id="tip" hidden></div>
     <div id="fail" hidden>The 3D view could not start. It loads three.js from cdn.jsdelivr.net, so it needs a connection and a browser with WebGL. The 2D plan works offline.</div>
   </div>
+  <details id="about" hidden><summary>About this layout</summary><p id="aboutText"></p></details>
   <aside id="side"></aside>
 </main>
 <script src="core.js"></script>
@@ -80,6 +115,9 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
 const fmt = n; // the core's one-decimal formatter
+// ?shot shows only the room; it is how the link-preview pictures are taken.
+const shot = /[?&]shot\b/.test(location.search);
+document.body.classList.toggle("shot", shot);
 const stage = document.getElementById("stage");
 const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const ACCENT = css("--accent"), WARN = css("--warn"), MUTED = css("--muted");
@@ -951,7 +989,7 @@ function pose(view) {
 function fly(view, instant) {
   const [p, t] = pose(view);
   // step back in a narrow window so the whole room still fits
-  if (view !== "inside") p.sub(t).multiplyScalar(Math.max(1, 1.35 / camera.aspect)).add(t);
+  if (view !== "inside") p.sub(t).multiplyScalar(Math.max(1, 1.1 / camera.aspect) * (shot ? 1.1 : 1)).add(t);
   if (instant) { camera.position.copy(p); controls.target.copy(t); controls.update(); return; }
   flight = { p0: camera.position.clone(), t0: controls.target.clone(), p1: p, t1: t, start: performance.now() };
 }
@@ -980,9 +1018,11 @@ function hitAt(e) {
 // Runs before the orbit controls see the press, so grabbing a piece never also turns the camera.
 canvas.addEventListener("pointerdown", e => {
   if (e.button !== 0) return;
-  press = { x: e.clientX, y: e.clientY, moved: false, door: null };
+  press = { x: e.clientX, y: e.clientY, moved: false, door: null, item: null };
+  if (viewer) tip.hidden = true;
   const hit = hitAt(e), id = hit && hit.object.userData.id;
   if (!id) { press.door = hit ? hit.object.userData.door : null; return; }
+  if (viewer) { press.item = id; return; } // a viewer only looks: the press turns the room instead
   if (selId !== id) select(id);
   const it = sel(), lift = e.shiftKey, look = camera.getWorldDirection(new THREE.Vector3());
   const normal = lift ? new THREE.Vector3(look.x, 0, look.z).normalize() : new THREE.Vector3(0, 1, 0);
@@ -1011,36 +1051,80 @@ canvas.addEventListener("pointermove", e => {
   if (!hit) return;
   const door = !it && state.openings.find(o => o.id === hit.object.userData.door);
   tip.textContent = it ? `${it.name} · ${fmt(it.w)} × ${fmt(it.d)} × ${fmt(it.h)}` : `${door.name} · click to ${doorOpen[door.id]?.want ? "close" : "open"}`;
-  const b = stage.getBoundingClientRect();
-  tip.style.left = e.clientX - b.left + "px"; tip.style.top = e.clientY - b.top + "px";
+  placeTip(e.clientX, e.clientY);
 });
+// Keeps the tip inside the stage, where a phone's narrow screen would otherwise cut it off.
+function placeTip(cx, cy) {
+  const b = stage.getBoundingClientRect();
+  tip.style.left = clamp(cx - b.left, 0, Math.max(b.width - tip.offsetWidth - 16, 0)) + "px";
+  tip.style.top = cy - b.top + "px";
+}
 function release() {
   if (drag) { drag = null; controls.enabled = true; }
   else if (press && !press.moved) {
-    if (press.door && doorOpen[press.door]) doorOpen[press.door].want = doorOpen[press.door].want ? 0 : 1;
+    const it = press.item && state.items.find(i => i.id === press.item);
+    if (it) { tip.textContent = `${it.name} · ${fmt(it.w)} × ${fmt(it.d)} × ${fmt(it.h)}`; tip.hidden = false; placeTip(press.x, press.y); }
+    else if (press.door && doorOpen[press.door]) doorOpen[press.door].want = doorOpen[press.door].want ? 0 : 1;
     else if (selId) select(null);
   }
   press = null;
 }
 canvas.addEventListener("pointerup", release);
 canvas.addEventListener("pointercancel", release);
-canvas.addEventListener("pointerleave", () => { tip.hidden = true; });
+canvas.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") tip.hidden = true; });
 
 /* ---------- toolbar ---------- */
 const WALL_LABEL = { auto: "Walls: near ones hidden", all: "Walls: all shown", none: "Walls: hidden" };
+const viewSel = document.getElementById("viewSel"), showMenu = document.getElementById("showMenu");
 function drawBar() {
   document.getElementById("wallBtn").textContent = WALL_LABEL[wallMode];
-  for (const b of document.querySelectorAll("[data-toggle]")) b.classList.toggle("on", show[b.dataset.toggle]);
+  for (const b of document.querySelectorAll("[data-toggle]")) {
+    if (b.type === "checkbox") b.checked = show[b.dataset.toggle];
+    else b.classList.toggle("on", show[b.dataset.toggle]);
+  }
   drawBulb();
 }
+viewSel.addEventListener("change", () => { if (viewSel.value) fly(viewSel.value); });
+// Turning the camera by hand leaves the named view, so picking it again flies back.
+controls.addEventListener("start", () => { viewSel.value = ""; });
+showMenu.addEventListener("change", e => {
+  const k = e.target.dataset.toggle;
+  if (k) { show[k] = e.target.checked; sync(); drawBar(); }
+});
+document.addEventListener("pointerdown", e => { if (showMenu.open && !showMenu.contains(e.target)) showMenu.open = false; });
 document.getElementById("bar").addEventListener("click", e => {
   const b = e.target.closest("button");
   if (!b) return;
-  if (b.dataset.view) fly(b.dataset.view);
-  else if (b.dataset.toggle) { show[b.dataset.toggle] = !show[b.dataset.toggle]; sync(); }
-  else wallMode = { auto: "all", all: "none", none: "auto" }[wallMode];
+  if (b.dataset.toggle) { show[b.dataset.toggle] = !show[b.dataset.toggle]; sync(); }
+  else if (b.id === "wallBtn") wallMode = { auto: "all", all: "none", none: "auto" }[wallMode];
   drawBar();
 });
+
+/* ---------- phone viewer ---------- */
+// On a phone the page only shows: the layouts are tabs, the editing panel is gone, a drag
+// turns the room and a tap names a piece. Editing stays on a wider screen.
+const viewerQuery = matchMedia("(max-width: 760px), (max-height: 500px)");
+const help = document.getElementById("help"), editHelp = help.textContent;
+const tabs = document.getElementById("tabs"), about = document.getElementById("about");
+let viewer = false;
+function setViewer() {
+  viewer = viewerQuery.matches && !shot;
+  document.body.classList.toggle("viewer", viewer);
+  help.textContent = viewer ? "Drag to turn · pinch to zoom · two fingers to move · tap a piece to see what it is, a door to open it" : editHelp;
+  if (viewer && selId) select(null);
+}
+function drawTabs() {
+  const cur = currentPlan();
+  tabs.innerHTML = BUILTIN.map(p => `<button data-plan="${p.id}" class="${p === cur ? "on" : ""}">${esc(p.name)}</button>`).join("");
+  document.getElementById("aboutText").textContent = cur && cur.why || "";
+  about.hidden = !(cur && cur.why);
+  tabs.querySelector(".on")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+}
+tabs.addEventListener("click", e => {
+  const b = e.target.closest("button[data-plan]");
+  if (b) openPlan(BUILTIN.find(p => p.id === b.dataset.plan));
+});
+viewerQuery.addEventListener("change", setViewer);
 
 /* ---------- run ---------- */
 function resize() {
@@ -1050,6 +1134,8 @@ function resize() {
   labelRenderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  // Keep a named view framed when the stage changes shape (a phone turning, the about panel opening).
+  if (viewSel.value) fly(viewSel.value, true);
 }
 new ResizeObserver(resize).observe(stage);
 let last = performance.now();
@@ -1074,7 +1160,8 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-onDraw = sync;
+onDraw = () => { sync(); drawTabs(); };
+setViewer();
 initPlanner();
 document.getElementById("keysHint").textContent = "Arrow keys nudge 1″ the way they point on screen (Shift = 6″), R rotates, Delete removes, Esc deselects. Solid pieces stop at walls and at each other. A red outline means a piece blocks a door swing, a room door's or a wardrobe's, or overlaps something.";
 drawBar();

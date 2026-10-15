@@ -280,3 +280,42 @@ test("every lamp that takes a bulb gets Femi's 1100 lm Tapo L535E", () => {
   const lm = JSON.parse(run(`JSON.stringify(Object.fromEntries(BUILTIN[1].items.filter(i => i.kind === "lamp" || i.kind === "sconce").map(i => [i.name, lightSpec(i).lm])))`));
   assert.deepEqual(lm, { "Floor lamp": 1100, "Plug-in swing-arm sconce": 1100, "BÖJA table lamp (yours)": 1100, "Mika cactus lamp (yours)": 1100, "PELARBOJ glow lamp (yours)": 25 });
 });
+
+const LINK_SLUGS = { window: "Bed facing the window", corner: "Corner bed, maximum storage", centred: "Centred bed, both sides open" };
+
+test("each ready-made layout has a link slug that opens it", () => {
+  const run = loadCore();
+  for (const [slug, name] of Object.entries(LINK_SLUGS)) {
+    assert.equal(run(`linkedPlan("?layout=${slug}")?.name`), name, slug);
+    assert.equal(run(`linkOf(BUILTIN.find(p => p.name === ${JSON.stringify(name)}))`), "/" + slug + "/");
+  }
+  assert.equal(run(`linkedPlan("?layout=nope")`), null);
+  assert.equal(run(`linkedPlan("")`), null);
+});
+
+// Width and height from a PNG's IHDR chunk.
+const pngSize = buf => [buf.readUInt32BE(16), buf.readUInt32BE(20)];
+
+test("each layout link has its own preview card and image, and sends people to that layout", () => {
+  for (const [slug, name] of Object.entries(LINK_SLUGS)) {
+    const html = read(slug + "/index.html");
+    assert.match(html, new RegExp(`<meta property="og:title" content="[^"]*${name}`), slug + " title");
+    assert.match(html, /<meta property="og:description" content="[^"]{20,}">/, slug + " description");
+    assert.match(html, new RegExp(`<meta property="og:image" content="https://bedroom\\.davidteju\\.dev/og/${slug}\\.png">`), slug + " image");
+    assert.match(html, /<meta name="twitter:card" content="summary_large_image">/);
+    assert.match(html, new RegExp(`location\\.replace\\("/\\?layout=${slug}"\\)`), slug + " redirect");
+    assert.deepEqual(pngSize(fs.readFileSync(new URL(`og/${slug}.png`, dir))), [1200, 630], slug + " image size");
+  }
+  assert.match(read("index.html"), /<meta property="og:image" content="https:\/\/bedroom\.davidteju\.dev\/og\/window\.png">/);
+});
+
+test("the 3D toolbar has a view picker, a show menu and a simulate-lights switch", () => {
+  const html = read("index.html");
+  const views = [...html.match(/<select id="viewSel"[^>]*>([\s\S]*?)<\/select>/)[1].matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
+  assert.deepEqual(views, ["3d", "top", "N", "E", "S", "W", "inside"]);
+  assert.doesNotMatch(html, /data-view=/);
+  const menu = html.match(/<details id="showMenu"[\s\S]*?<\/details>/)[0];
+  assert.deepEqual([...menu.matchAll(/data-toggle="(\w+)"/g)].map(m => m[1]), ["grid", "swings", "names"]);
+  assert.match(html, /<button data-toggle="lamps">Simulate lights<\/button>/);
+  assert.doesNotMatch(html, /Lamps only/);
+});
