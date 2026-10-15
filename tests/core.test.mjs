@@ -39,13 +39,13 @@ test("every ready-made layout uses the measured 46 x 16 upholstered storage benc
   assert.equal(run(`PRESETS.find(p => p[7] === "ottoman").slice(1, 3).join("x")`), "46x16");
 });
 
-test("the window-facing layout has a PAX wardrobe facing south and nothing blocked", () => {
+test("the window-facing layout has the wardrobe facing south and nothing blocked", () => {
   const run = loadCore();
   const out = JSON.parse(run(`(() => {
     const plan = BUILTIN.find(p => p.name === "Bed facing the window");
     state.items = plan.items;
     return JSON.stringify({
-      pax: plan.items.filter(i => /PAX/.test(i.name)).map(frontDir),
+      pax: plan.items.filter(i => i.kind === "wardrobe").map(frontDir),
       blocked: plan.items.filter(isBad).map(i => i.name)
     });
   })()`));
@@ -130,11 +130,13 @@ test("every piece in every ready-made layout resolves to a compass facing", () =
   for (const f of faces) assert.match(f, /^[NESW]$/);
 });
 
-test("every ready-made layout puts the same KALLAX shoe tower beside the PAX", () => {
+test("every ready-made layout has Femi's green VILHATTEN wardrobe with his black LACK shoe shelf beside it", () => {
   const run = loadCore();
-  const shoes = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => p.items.filter(i => i.kind === "shoe").map(i => [i.name, i.x, i.y, i.w, i.d, i.h])))`));
-  const tower = [["KALLAX 1x4 shoe tower", 39.375, 0, 15.375, 16.5, 57.875]];
-  assert.deepEqual(shoes, [tower, tower, tower]);
+  const pick = kind => JSON.parse(run(`JSON.stringify(BUILTIN.map(p => p.items.filter(i => i.kind === "${kind}").map(i => [i.name, i.x, i.y, i.w, i.d, i.h, i.color])))`));
+  const wardrobe = [["VILHATTEN wardrobe, green", 0, 0, 38.625, 22.5, 74.75, "#6b8462"]];
+  const shelf = [["LACK shoe shelf, black-brown", 38.625, 0, 11.75, 11, 74.75, "#2a2421"]];
+  assert.deepEqual(pick("wardrobe"), [wardrobe, wardrobe, wardrobe]);
+  assert.deepEqual(pick("shoe"), [shelf, shelf, shelf]);
 });
 
 test("the window-facing layout has a nightstand by the head of the bed on its open side", () => {
@@ -461,4 +463,29 @@ test("the Selected panel offers a turn angle only for pieces that can turn, and 
   assert.match(core, /Shift\+R turns 15°/);
   assert.match(read("index.html"), /b\.group\.rotation\.y = FACE_TURN\[face\] - turnOf\(it\) \* Math\.PI \/ 180/);
   assert.match(read("plan.html"), /rotate\(\$\{turnOf\(it\)\} \$\{cx\} \$\{cy\}\)/);
+});
+
+test("the window layout uses Femi's own wood nightstand with the rattan drawer", () => {
+  const run = loadCore();
+  const ns = JSON.parse(run(`JSON.stringify(BUILTIN.find(p => p.name === "Bed facing the window").items.filter(i => i.kind === "nightstand").map(i => [i.name, i.w, i.d, i.h, i.color]))`));
+  assert.deepEqual(ns, [["Your nightstand, rattan drawer", 17, 17, 22, "#8b4a24"]]);
+});
+
+test("the bed's colour is the sage comforter, and BÖJA is IKEA's 8 in by 16 in egg", () => {
+  const run = loadCore();
+  assert.equal(run("KIND_COLOR.bed"), "#a9ae95");
+  const boja = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => p.items.filter(i => /BÖJA/.test(i.name)).map(i => [i.w, i.d, i.h])))`));
+  assert.deepEqual(boja, [[[8, 8, 16]], [[8, 8, 16]], [[8, 8, 16]]]);
+});
+
+test("the 3D view models the real pieces: painted wardrobe, LACK shelf, upholstered bed, quilted comforter, rattan drawer, woven egg lamp", () => {
+  const html = read("index.html");
+  const model = name => html.match(new RegExp(`^\\s{2}${name}\\(g, (\\{|x\\))[\\s\\S]*?^\\s{2}\\},?$`, "m"))[0];
+  assert.match(model("wardrobe"), /vilhatten/, "a VILHATTEN: full door, short door over two drawers, white knobs");
+  assert.match(model("shoe"), /lack/, "a LACK: back and side panel with cantilevered shelves");
+  assert.match(model("bed"), /headboardMat\(/, "channel-tufted grey headboard");
+  assert.match(model("bed"), /quiltMat\(/, "pinch-quilted comforter");
+  assert.match(model("bed"), /BED_FABRIC/, "upholstered frame, not wood");
+  assert.match(model("nightstand"), /rattanMat\(/);
+  assert.match(model("lamp"), /böja/, "a woven bamboo egg");
 });

@@ -438,6 +438,65 @@ const fabricMat = c => cached("fabric" + col(c).getHexString(), () => new THREE.
   color: col(c), map: fabricTex, bumpMap: fabricTex, bumpScale: 0.35, roughness: 0.9,
   sheen: 0.8, sheenRoughness: 0.6, sheenColor: shade(c, 0.4)
 }));
+// Femi's bed is upholstered in a light heather grey: frame, rails and a channel-tufted headboard.
+const BED_FABRIC = "#b8b5ae";
+// The headboard's face: heather fabric stitched into a grid of padded rectangles.
+const headboardMat = (c, aspect) => cached(`headboard${c}/${aspect.toFixed(2)}`, () => {
+  const map = canvasTex(768, Math.max(64, Math.round(768 / aspect)), (g, w, h) => {
+    const r = rng("heather"), hex = k => "#" + shade(c, k).getHexString(), cols = Math.max(2, Math.round(aspect * 2.4)), rows = 3;
+    g.fillStyle = hex(0); g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 9000; i++) { g.fillStyle = r() < 0.5 ? "rgba(255,255,255,.10)" : "rgba(0,0,0,.08)"; g.fillRect(r() * w, r() * h, 2, 1); }
+    const cw = w / cols, ch = h / rows;
+    for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) { // each pad puffs out a little
+      const x = i * cw + cw / 2, y = j * ch + ch / 2, grad = g.createRadialGradient(x, y, 0, x, y, Math.max(cw, ch) * 0.7);
+      grad.addColorStop(0, "rgba(255,255,255,.12)"); grad.addColorStop(1, "rgba(0,0,0,.10)");
+      g.fillStyle = grad; g.fillRect(i * cw, j * ch, cw, ch);
+    }
+    g.strokeStyle = hex(-0.3); g.lineWidth = 3;
+    for (let i = 1; i < cols; i++) { g.beginPath(); g.moveTo(i * cw, 0); g.lineTo(i * cw, h); g.stroke(); }
+    for (let j = 1; j < rows; j++) { g.beginPath(); g.moveTo(0, j * ch); g.lineTo(w, j * ch); g.stroke(); }
+  });
+  return new THREE.MeshStandardMaterial({ map, bumpMap: map, bumpScale: 1.2, roughness: 0.95 });
+});
+// The comforter: a sage quilt pinched on a diamond grid, each pinch a little X with puffy fill between.
+const quiltMat = (c, aspect) => cached(`quilt${c}/${aspect.toFixed(2)}`, () => {
+  const map = canvasTex(1024, Math.max(64, Math.round(1024 / aspect)), (g, w, h) => {
+    // pinches about every 5 1/2 in across a 67 in comforter
+    const hex = k => "#" + shade(c, k).getHexString(), step = w / Math.max(6, Math.round(aspect * 11));
+    g.fillStyle = hex(0); g.fillRect(0, 0, w, h);
+    for (let row = 0, y = 0; y < h + step; row++, y += step * 0.75) for (let x = row % 2 ? step / 2 : 0; x < w + step; x += step) {
+      const grad = g.createRadialGradient(x, y, 0, x, y, step * 0.6);
+      grad.addColorStop(0, "rgba(0,0,0,.10)"); grad.addColorStop(0.2, "rgba(0,0,0,.02)"); grad.addColorStop(0.65, "rgba(255,255,255,.06)"); grad.addColorStop(1, "rgba(255,255,255,0)");
+      g.fillStyle = grad; g.fillRect(x - step, y - step, step * 2, step * 2);
+      g.strokeStyle = hex(-0.18); g.lineWidth = 1.2;
+      for (const [dx, dy] of [[1, 1], [1, -1]]) { g.beginPath(); g.moveTo(x - dx * 3.5, y - dy * 3.5); g.lineTo(x + dx * 3.5, y + dy * 3.5); g.stroke(); }
+    }
+  });
+  return new THREE.MeshStandardMaterial({ map, bumpMap: map, bumpScale: 1.5, roughness: 0.92 });
+});
+// Woven cane, as on the nightstand's drawer front.
+const rattanMat = () => cached("rattan", () => {
+  const map = canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = "#6e5232"; g.fillRect(0, 0, w, h);
+    for (let y = 0; y < h; y += 8) for (let x = 0; x < w; x += 8) {
+      g.fillStyle = (x + y) % 16 ? "#c9ad7a" : "#b8975f";
+      g.fillRect(x + 1, y + 2, 6, 4); g.fillRect(x + 2, y + 1, 4, 6);
+    }
+  });
+  map.wrapS = map.wrapT = THREE.RepeatWrapping; map.repeat.set(3, 1.2);
+  return new THREE.MeshStandardMaterial({ map, bumpMap: map, bumpScale: 0.6, roughness: 0.85 });
+});
+// BÖJA's shade: diagonal bamboo strips with gaps the bulb shines through.
+const bambooMat = () => cached("bamboo", () => {
+  const alpha = canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = "#000"; g.fillRect(0, 0, w, h);
+    g.strokeStyle = "#fff"; g.lineWidth = 9;
+    for (let k = -w; k < 2 * w; k += 32) for (const s of [1, -1]) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + s * h, h); g.stroke(); }
+  });
+  alpha.colorSpace = THREE.NoColorSpace;
+  alpha.wrapS = alpha.wrapT = THREE.RepeatWrapping; alpha.repeat.set(4, 3);
+  return new THREE.MeshStandardMaterial({ color: 0xc9a46a, roughness: 0.8, alphaMap: alpha, alphaTest: 0.5, side: THREE.DoubleSide });
+});
 // A bean bag's sack: a sphere pushed into shape. The beans settle into a wide flat base with
 // bulging sides, the back stays up as a backrest, the seat sinks where someone sat, and the
 // cover creases round that dent.
@@ -544,28 +603,55 @@ function chest(g, { a, dp, h, c }, leg, maxRows) {
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 
 const MODELS = {
+  // Femi's bed: grey upholstered frame and channel-tufted headboard, white sheets, a sage quilted comforter.
   bed(g, { it, a, dp, h, c }) {
     const hb = it.headH > 0 ? Math.min(it.headT, dp) : 0, len = dp - hb, zc = hb / 2, foot = zc + len / 2;
-    const legH = Math.min(5, h * 0.22), railH = Math.min(8, h * 0.34), frame = wood("#6b4a32");
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) bxm(g, 2.4, legH, 2.4, sx * (a / 2 - 2.5), 0, zc + sz * (len / 2 - 2.5), frame);
-    bxm(g, a, railH, len, 0, legH, zc, frame, 0.6);
+    const legH = Math.min(3, h * 0.12), railH = Math.min(10, h * 0.4), frame = fabricMat(BED_FABRIC), legs = M("#2a2a2c", 0.6);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) bxm(g, 2, legH, 2, sx * (a / 2 - 2.5), 0, zc + sz * (len / 2 - 2.5), legs);
+    bxm(g, a, railH, len, 0, legH, zc, frame, 1.2);
     const mBot = legH + railH - 1.5, mh = Math.max(h - mBot, 2);
     bxm(g, a - 2, mh, len - 2, 0, mBot, zc, LINEN, 1.8);
-    const dl = len * 0.7;
-    bxm(g, a + 0.8, mh * 0.8 + 1.2, dl, 0, h - mh * 0.8, foot - dl / 2 + 0.3, M(c, 0.95), 1.6);
-    bxm(g, a + 1, 1.4, 7, 0, h + 0.5, foot - dl + 2, M(shade(c, 0.6), 0.95), 0.6);
-    bxm(g, a + 1.4, 1, len * 0.16, 0, h + 1.3, foot - len * 0.2, M(shade(c, -0.4), 1), 0.4);
+    const dl = len * 0.7, side = M(c, 0.95);
+    const duvet = bxm(g, a + 0.8, mh * 0.8 + 1.2, dl, 0, h - mh * 0.8, foot - dl / 2 + 0.3, side, 1.6);
+    duvet.material = [side, side, quiltMat(c, (a + 0.8) / dl), side, side, side];
+    bxm(g, a + 1, 1.4, 7, 0, h + 0.5, foot - dl + 2, M(shade(c, 0.3), 0.95), 0.6); // turned-down top edge
     const pw = (a - 9) / 2;
     for (const sx of [-1, 1]) bxm(g, pw, 5, 16, sx * (pw / 2 + 1.5), h - 0.4, zc - len / 2 + 10, LINEN, 2.2).rotation.x = -0.22;
     if (hb) {
-      bxm(g, a, it.headH, hb, 0, 0, -dp / 2 + hb / 2, M(shade(c, -0.5), 1), 0.8);
-      const count = Math.max(2, Math.round(a / 11)), cw = a / count;
-      for (let i = 0; i < count; i++) bxm(g, cw - 0.7, it.headH - h - 2, 0.9, -a / 2 + cw * (i + 0.5), h + 1, -dp / 2 + hb + 0.2, M(shade(c, -0.4), 1), 0.4);
+      bxm(g, a, it.headH, hb, 0, 0, -dp / 2 + hb / 2, frame, 0.8);
+      const padH = it.headH - h + 2, pad = bxm(g, a - 0.4, padH, 1.2, 0, h - 2, -dp / 2 + hb + 0.6, frame, 0.5);
+      pad.material = [frame, frame, frame, frame, headboardMat(BED_FABRIC, (a - 0.4) / padH), frame];
     }
   },
   dresser: (g, x) => chest(g, x, x.h > 20 ? 3.5 : 2, 7),
-  nightstand: (g, x) => chest(g, x, Math.min(5, x.h * 0.2), 3),
-  wardrobe(g, { a, dp, h, c }) {
+  // Femi's own nightstand is solid wood with corner posts, a woven-cane drawer, a black bar pull and an open shelf low down.
+  nightstand(g, x) {
+    if (!/rattan/.test(x.name)) return chest(g, x, Math.min(5, x.h * 0.2), 3);
+    const { a, dp, h, c } = x, m = wood(c), dark = wood(shade(c, -0.15)), top = 1.3, dh = h * 0.32, y0 = h - top - dh;
+    bxm(g, a, top, dp, 0, h - top, 0, m, 0.15);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) bxm(g, 1.8, h - top, 1.8, sx * (a / 2 - 0.9), 0, sz * (dp / 2 - 0.9), m);
+    bxm(g, a - 3.6, dh, dp - 2, 0, y0, -0.4, dark);
+    bxm(g, a - 3.6, dh, 0.6, 0, y0, dp / 2 - 0.9, m);
+    bxm(g, a - 6, dh - 2.4, 0.3, 0, y0 + 1.2, dp / 2 - 0.45, rattanMat());
+    bxm(g, a * 0.34, 0.45, 0.5, 0, y0 + dh * 0.32, dp / 2 + 0.3, DARK_METAL);
+    for (const sx of [-1, 1]) bxm(g, 0.45, 0.45, 0.7, sx * a * 0.16, y0 + dh * 0.32, dp / 2, DARK_METAL);
+    bxm(g, a - 3.6, 0.9, dp - 3.6, 0, 3, 0, m);
+    for (const sz of [-1, 1]) bxm(g, a - 3.6, 1.6, 0.8, 0, y0 - 1.6, sz * (dp / 2 - 0.9), dark);
+  },
+  wardrobe(g, { a, dp, h, c, name }) {
+    if (/vilhatten/.test(name)) { // painted: a full-height door, a shorter one over two drawers, white mushroom knobs
+      const paint = M(c, 0.75), knob = M("#f4f2ec", 0.45), front = dp / 2, half = (a - 0.6) / 2, drawers = h * 0.23, base = 3.4;
+      bxm(g, a - 1.2, base, dp - 1.5, 0, 0, -0.75, M(shade(c, -0.3), 0.8));
+      bxm(g, a, h - base, dp - 0.8, 0, base, -0.4, paint);
+      const leaf = (x, y, w, ht) => bxm(g, w - 0.25, ht - 0.25, 0.75, x, y, front - 0.3, paint, 0.08);
+      leaf(-half / 2, base + 0.3, half, h - base - 0.6);
+      leaf(half / 2, base + 0.3 + drawers, half, h - base - 0.6 - drawers);
+      for (let i = 0; i < 2; i++) leaf(half / 2, base + 0.3 + i * drawers / 2, half, drawers / 2);
+      const knobAt = (x, y) => { cyl(g, 0.3, 0.3, 1, x, y, front + 0.5, knob, "z", 12); cyl(g, 0.65, 0.65, 0.4, x, y, front + 1.1, knob, "z", 18); };
+      knobAt(-1.6, h * 0.5); knobAt(1.6, h * 0.5);
+      for (let i = 0; i < 2; i++) knobAt(half / 2, base + 0.3 + drawers * (i + 0.7) / 2);
+      return;
+    }
     bxm(g, a - 2, 3, dp - 2, 0, 0, -0.5, wood(shade(c, -0.4)));
     bxm(g, a, h - 3, dp - 0.9, 0, 3, -0.45, wood(c));
     const doors = Math.max(1, Math.round(a / 20)), dw = (a - 0.6) / doors;
@@ -591,7 +677,21 @@ const MODELS = {
   },
   shoe(g, { a, dp, h, c, name, r }) {
     const len = Math.min(10.5, dp - 1);
-    if (/kallax|cube/.test(name)) {
+    if (/lack/.test(name)) { // LACK wall shelf unit: a back and one side panel, shelves cantilevered off them, open on the other side
+      const m = M(c, 0.5), t = 1.9, shelves = 7, step = (h - t) / (shelves - 1);
+      bxm(g, a, h, 0.6, 0, 0, -dp / 2 + 0.3, m);
+      bxm(g, 1.4, h, dp, a / 2 - 0.7, 0, 0, m);
+      for (let i = 0; i < shelves; i++) {
+        bxm(g, a - 1.4, t, dp - 0.6, -0.7, i * step, 0.3, m);
+        if (i === shelves - 1) continue;
+        // shelves are shallower than a shoe, so each pair stands sideways, one shoe behind the other
+        const pair = new THREE.Group(), cc = pick(r, SHOE_COLORS), sl = Math.min(a - 2.2, 11.5);
+        pair.position.set(-0.7, i * step + t, 0.3);
+        pair.rotation.y = Math.PI / 2;
+        shoe(pair, -2.3, 0, 0, sl, cc); shoe(pair, 2.3, 0, 0, sl, cc);
+        g.add(pair);
+      }
+    } else if (/kallax|cube/.test(name)) {
       const cols = Math.max(1, Math.round(a / 15)), rows = Math.max(1, Math.round(h / 14.6)), t = 1.5, m = wood(c);
       const cw = (a - 2 * t) / cols, ch = (h - 2 * t) / rows;
       bxm(g, a, t, dp, 0, 0, 0, m); bxm(g, a, t, dp, 0, h - t, 0, m);
@@ -779,8 +879,17 @@ const MODELS = {
     }
     g.add(gear);
   },
-  lamp(g, { a, dp, h }) {
+  lamp(g, { a, dp, h, name }) {
     const rad = Math.min(a, dp) / 2, shadeH = Math.min(h * 0.3, 10);
+    if (/böja|boja/.test(name)) { // IKEA BÖJA: a braided bamboo egg on a small steel foot, the bulb glowing through the weave
+      cyl(g, rad * 0.45, rad * 0.5, 0.8, 0, 0.4, 0, METAL, "y", 24);
+      const egg = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 28), bambooMat());
+      egg.scale.set(rad, h * 0.47, rad); egg.position.y = h * 0.52;
+      egg.userData.noCast = true;
+      g.add(egg);
+      ball(g, rad * 0.3, 0, h * 0.42, 0, SHADE);
+      return;
+    }
     cyl(g, rad * 0.55, rad * 0.65, 1, 0, 0.5, 0, DARK_METAL, "y", 24);
     cyl(g, 0.4, 0.4, h - shadeH, 0, (h - shadeH) / 2, 0, DARK_METAL);
     cyl(g, rad * 0.6, rad, shadeH, 0, h - shadeH / 2, 0, SHADE, "y", 24);

@@ -14,6 +14,11 @@ A planner for Femi's San Francisco bedroom, built from his own measurements. Inc
   turns off daylight and the ceiling fixture and lights each lamp and sconce. Its bulb control sets
   every lamp to a white temperature (2500 to 6500K, the Tapo L535E's range) or any colour, and
   remembers the choice in that browser.
+- **Femi's own pieces** are modelled from his photos: the green IKEA VILHATTEN wardrobe
+  (38⅝ × 22½ × 74¾, a full door and a short door over two drawers, white knobs), the black-brown
+  LACK wall shelf unit beside it as the shoe shelf (11¾ × 11 × 74¾), the grey upholstered bed with a
+  channel-tufted headboard under a sage pinch-quilted comforter, his wood nightstand with a cane
+  drawer (17 × 17 × 22, estimated from a photo), and the BÖJA woven bamboo egg lamp (8 × 16).
 - **Gear:** every ready-made layout hangs Femi's snowboard upright on a wall rack, bindings on,
   with his boots on a tray under it. A board's model lies flat instead when it is wider than tall.
   The furniture list also offers a leaning ladder shelf, which the window layout uses on the
