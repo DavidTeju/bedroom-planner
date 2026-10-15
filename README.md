@@ -4,7 +4,7 @@ A planner for Femi's San Francisco bedroom, built from his own measurements. Inc
 
 - **Live:** https://bedroom.davidteju.dev (3D) and https://bedroom.davidteju.dev/plan.html (2D)
 - **Layout links:** https://bedroom.davidteju.dev/window/, `/corner/` and `/centred/` each open
-  one layout and have their own link preview. The sidebar's **Copy link** button copies them.
+  one layout and have their own link preview. The link icon beside each ready-made layout in the sidebar copies them.
 - **3D view** (`site/index.html`): a three.js scene with modelled furniture. Drag a piece to move
   it, Shift-drag to raise or lower it, R rotates, arrow keys nudge, click a door to open it. The
   **View** picker switches between the 3D, top, wall and standing-inside views, and **Show**
