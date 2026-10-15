@@ -14,7 +14,8 @@ A planner for Femi's San Francisco bedroom, built from his own measurements. Inc
   remembers the choice in that browser.
 - **Gear:** every ready-made layout hangs Femi's snowboard upright on a wall rack, bindings on,
   with his boots on a tray under it. A board's model lies flat instead when it is wider than tall.
-  The furniture list also offers a leaning ladder shelf and a bean bag.
+  The furniture list also offers a leaning ladder shelf, which the window layout uses on the
+  in-push, and a bean bag modelled as one sagging fabric sack with a sat-in seat.
 - **On a phone** the 3D page is a viewer: the layouts are tabs, there is no editing panel, a drag
   turns the room and a tap names a piece. A screen at most 760 px wide or 500 px tall counts
   as a phone. Editing needs a wider screen.

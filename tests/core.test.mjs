@@ -372,3 +372,26 @@ test("every ready-made layout hangs the snowboard upright on a wall over its boo
   }))`));
   for (const p of out) assert.deepEqual(p, { name: p.name, onWall: true, upright: true, clearsBoots: true, over: true, bootsOnFloor: true });
 });
+
+test("the window layout has a ladder shelf on the in-push instead of an open clothes rack", () => {
+  const run = loadCore();
+  const out = JSON.parse(run(`(() => {
+    const plan = BUILTIN.find(p => p.name === "Bed facing the window");
+    state.items = plan.items;
+    return JSON.stringify({
+      racks: plan.items.filter(i => i.kind === "rack").length,
+      ladder: plan.items.filter(i => i.kind === "ladder").map(i => [i.x, i.y, i.w, i.d, i.h, frontDir(i)]),
+      count: plan.items.length, mentionsRack: /RIGGA|rack/.test(plan.why)
+    });
+  })()`));
+  assert.deepEqual(out, { racks: 0, ladder: [[101, 48, 24, 16, 72, "S"]], count: 22, mentionsRack: false });
+});
+
+test("the bean bag is one sagging fabric sack, not stacked spheres", () => {
+  const html = read("index.html");
+  const model = html.match(/^\s+beanbag\(g,[\s\S]*?^\s{2}\},$/m)[0];
+  assert.match(model, /sackGeometry\(/, "built from one deformed sack");
+  assert.match(model, /fabricMat\(/, "covered in a woven fabric");
+  assert.doesNotMatch(model, /SphereGeometry/);
+  assert.match(html, /function sackGeometry\(/);
+});
