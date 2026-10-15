@@ -347,3 +347,28 @@ test("every sidebar section but Selected collapses, and the room section starts 
   assert.deepEqual(sections, [["furniture", true], ["plans", true], ["room", false], ["save", true], ["keys", true]]);
   assert.doesNotMatch(side, /<h2>/);
 });
+
+test("the snowboard, its boots, a ladder shelf and a bean bag are pieces both views draw", () => {
+  const run = loadCore();
+  const kinds = { board: "Snowboard wall rack", boots: "Snowboard boots on a tray", ladder: "Ladder shelf", beanbag: "Bean bag" };
+  for (const [kind, name] of Object.entries(kinds)) {
+    assert.ok(run(`KINDS.${kind}`), kind + " is a kind");
+    assert.equal(run(`PRESETS.filter(p => p[7] === "${kind}").map(p => p[0]).join()`), name, kind + " has a preset");
+    assert.equal(run(`kindOf({ name: "${name}" })`), kind, name + " is recognised by name");
+    assert.match(read("index.html"), new RegExp(`^\\s+${kind}\\(g,`, "m"), "the 3D view has a " + kind + " model");
+    assert.match(read("plan.html"), new RegExp(`k === "${kind}"`), "the 2D plan draws " + kind);
+  }
+});
+
+test("every ready-made layout hangs the snowboard upright on a wall over its boots", () => {
+  const run = loadCore();
+  const out = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => {
+    state.items = p.items;
+    const board = p.items.filter(i => i.kind === "board"), boots = p.items.filter(i => i.kind === "boots");
+    if (board.length !== 1 || boots.length !== 1) return { name: p.name, board: board.length, boots: boots.length };
+    const b = board[0], t = boots[0], c = clearances(b);
+    return { name: p.name, onWall: Math.min(c.N, c.S, c.E, c.W) <= state.room.flush, upright: b.h > 4 * Math.max(b.w, b.d),
+      clearsBoots: b.z >= t.z + t.h, over: overlap(b, t), bootsOnFloor: t.z === 0 };
+  }))`));
+  for (const p of out) assert.deepEqual(p, { name: p.name, onWall: true, upright: true, clearsBoots: true, over: true, bootsOnFloor: true });
+});

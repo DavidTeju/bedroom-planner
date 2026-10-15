@@ -580,6 +580,67 @@ const MODELS = {
       x += bw + 0.08;
     }
   },
+  // Leans on the wall: two rails from the floor out front to the wall up top, shelves narrowing as they rise.
+  ladder(g, { a, dp, h, c, r }) {
+    const m = wood(c), run = dp - 2, tilt = Math.atan2(run, h), back = -dp / 2 + 0.6, frontAt = y => dp / 2 - 1 - run * (y / h);
+    for (const sx of [-1, 1]) {
+      const len = Math.hypot(h, run), rail = bxm(g, 1.4, len, 1.6, 0, 0, 0, m);
+      rail.geometry.translate(0, len / 2, 0); // pivot at the rail's foot
+      rail.position.set(sx * (a / 2 - 0.7), 0, dp / 2 - 1.8);
+      rail.rotation.x = -tilt;
+    }
+    const shelves = Math.max(2, Math.round(h / 15));
+    for (let i = 0; i < shelves; i++) {
+      const y = 6 + i * (h - 10) / (shelves - 0.5), sd = Math.max(frontAt(y) - back, 3);
+      bxm(g, a - 2.8, 0.8, sd, 0, y, back + sd / 2, m, 0.15);
+      if (r() < 0.5) cyl(g, 2.2, 1.7, 4, -a * 0.2, y + 2.8, back + sd / 2, M("#c9734b", 0.9), "y", 14);
+      for (let x = a * 0.02; x < a / 2 - 3 && sd > 5; x += 1.4) bxm(g, 1.2, 5 + r() * 3, Math.min(sd - 1, 6), x, y + 0.8, back + sd / 2, M(pick(r, BOOKS), 0.8));
+    }
+  },
+  // A squashed sack of beans with a higher lump at the back where you lean.
+  beanbag(g, { a, dp, h, c }) {
+    const lump = (sx, sy, sz, x, y, z, m) => {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), m);
+      mesh.scale.set(sx, sy, sz); mesh.position.set(x, y, z); g.add(mesh);
+    };
+    lump(a / 2, h * 0.36, dp / 2, 0, h * 0.36, 0, M(c, 1));
+    lump(a * 0.42, h * 0.42, dp * 0.26, 0, h * 0.58, -dp * 0.2, M(c, 1));
+    lump(a * 0.3, h * 0.12, dp * 0.3, 0, h * 0.66, dp * 0.08, M(shade(c, -0.12), 1));
+  },
+  // Snowboard on a wall rack with its bindings on: upright when taller than wide, lying flat otherwise.
+  board(g, { a, dp, h, c }) {
+    const upright = h >= a, len = upright ? h : a, wid = Math.min(upright ? a : h, 12.5), waist = wid * 0.84, nose = wid / 2;
+    const b = new THREE.Group(), deck = M(c, 0.45), zb = -dp / 2 + 1.6;
+    for (const end of [-1, 1]) bxm(b, wid * 0.5, 1.6, 1.4, 0, end * (len / 2 - 5) - 0.8, -dp / 2 + 0.7, DARK_METAL, 0.2); // wall brackets
+    bxm(b, waist, len - 2 * nose, 0.45, 0, -len / 2 + nose, zb, deck, 0.1);
+    for (const end of [-1, 1]) cyl(b, nose, nose, 0.45, 0, end * (len / 2 - nose), zb, deck, "z", 28);
+    bxm(b, waist * 0.9, len * 0.5, 0.06, 0, -len * 0.25, zb + 0.26, M(shade(c, 0.45), 0.5)); // top-sheet stripe
+    bxm(b, waist, len - 2 * nose, 0.12, 0, -len / 2 + nose, zb - 0.28, M("#1b1c20", 0.35));
+    for (const s of [-1, 1]) { // bindings, 22 in apart
+      const y = s * 11, binding = M("#16171a", 0.6), strap = M("#c9a227", 0.7);
+      bxm(b, waist * 0.92, 4.6, 0.9, 0, y - 2.3, zb + 0.7, binding, 0.2);
+      bxm(b, 0.9, 5, 5.5, -waist / 2 + 1, y - 2.5, zb + 3.4, binding, 0.3);
+      for (const k of [-1.3, 1.6]) bxm(b, waist * 0.5, 1.5, 1.4, waist * 0.08, y + k - 0.75, zb + 4.4, strap, 0.4);
+    }
+    b.position.set(0, h / 2, 0);
+    if (!upright) b.rotation.z = Math.PI / 2;
+    g.add(b);
+  },
+  // A pair of snowboard boots, toes out, on a rubber boot tray.
+  boots(g, { a, dp, h, c }) {
+    const tray = M("#1d1f24", 0.9), shell = M(c, 0.7), liner = M(shade(c, 0.25), 0.9), dial = M("#c9a227", 0.5);
+    bxm(g, a, 0.6, dp, 0, 0, 0, tray, 0.2);
+    for (const side of [-1, 1]) bxm(g, a, 1.2, 0.5, 0, 0, side * (dp / 2 - 0.25), tray);
+    const bw = Math.min(a * 0.42, 5.5), len = Math.min(dp - 1.4, 13);
+    for (const sx of [-1, 1]) {
+      const x = sx * a * 0.24;
+      bxm(g, bw + 0.3, 1.4, len, x, 0.6, 0, M("#121316", 0.8), 0.4);
+      bxm(g, bw, Math.min(4.5, h * 0.38), len * 0.92, x, 1.8, 0.2, shell, 1.4);
+      bxm(g, bw * 0.96, h - 2.4, len * 0.48, x, 2.4, -len * 0.22, shell, 1.5);
+      bxm(g, bw * 0.8, 1, len * 0.42, x, h - 0.6, -len * 0.22, liner, 0.4);
+      cyl(g, 0.9, 0.9, 0.6, x + sx * (bw / 2 + 0.2), h * 0.55, -len * 0.18, dial, "x", 14);
+    }
+  },
   chair(g, { a, dp, h, c }) {
     const fabric = M(c, 1), legH = Math.min(4, h * 0.15), seat = Math.max(h * 0.32, legH + 4);
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(g, 0.9, 0.6, legH, sx * (a / 2 - 3), legH / 2, sz * (dp / 2 - 3), wood("#5a3e2b"));

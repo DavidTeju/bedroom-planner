@@ -26,15 +26,17 @@ const PRESETS = [
   ["Armchair", 32, 34, 32, 0, "#7fae8f", true, "chair"], ["Rug", 96, 60, 0.5, 0, "#d9a5a0", false, "rug"],
   ["Wall shelf", 36, 8, 2, 60, "#a8a29e", true, "other"], ["Mirror", 24, 1, 60, 12, "#9fc5d8", true, "mirror"],
   ["Floor lamp", 12, 12, 64, 0, "#e3c66b", true, "lamp"], ["Table lamp", 10, 10, 18, 0, "#e3c66b", true, "lamp"], ["Plug-in sconce", 6, 4, 12, 46, "#e3c66b", true, "sconce"],
+  ["Ladder shelf", 24, 16, 72, 0, "#b08a62", true, "ladder"], ["Bean bag", 36, 34, 26, 0, "#8a6f5a", true, "beanbag"],
+  ["Snowboard wall rack", 12, 8, 63, 16, "#2f5d7c", true, "board"], ["Snowboard boots on a tray", 14, 15, 12, 0, "#2b2d33", true, "boots"],
   ["Framed art", 24, 1, 30, 50, "#efe4cc", true, "art"], ["Wall hanging", 30, 1, 45, 40, "#3f5f9e", true, "textile"], ["Peg rail with gear", 36, 2, 20, 50, "#c9b592", true, "pegs"],
   ["Custom box", 24, 24, 24, 0, "#bdbdbd", true, "other"]
 ];
 const KINDS = { bed: "Bed", bench: "Bench", ottoman: "Upholstered storage bench", dresser: "Dresser / drawers", wardrobe: "Wardrobe", rack: "Clothes rack", shoe: "Shoe storage",
-  nightstand: "Nightstand", shelf: "Shelving", chair: "Chair", rug: "Rug", mirror: "Mirror",
+  nightstand: "Nightstand", shelf: "Shelving", ladder: "Ladder shelf", beanbag: "Bean bag", board: "Snowboard on a wall rack", boots: "Snowboard boots", chair: "Chair", rug: "Rug", mirror: "Mirror",
   art: "Framed art", textile: "Wall hanging", pegs: "Peg rail with gear", lamp: "Lamp", sconce: "Wall sconce", plant: "Plant", other: "Plain box" };
 // Starting points that ship with the page.
 const KIND_COLOR = { bed: "#7c93c4", bench: "#a9825a", ottoman: "#4a4d55", dresser: "#b98b5e", wardrobe: "#a98f6f", rack: "#9aa3ad", shoe: "#c7b08e",
-  nightstand: "#d1b48c", shelf: "#9c7b55", chair: "#7fae8f", rug: "#d9a5a0", mirror: "#9fc5d8", lamp: "#e3c66b", sconce: "#e3c66b", plant: "#7fae8f",
+  nightstand: "#d1b48c", shelf: "#9c7b55", ladder: "#b08a62", beanbag: "#8a6f5a", board: "#2f5d7c", boots: "#2b2d33", chair: "#7fae8f", rug: "#d9a5a0", mirror: "#9fc5d8", lamp: "#e3c66b", sconce: "#e3c66b", plant: "#7fae8f",
   art: "#efe4cc", textile: "#3f5f9e", pegs: "#c9b592", other: "#bdbdbd" };
 // [name, kind, x, y, width, depth, height, off floor, headboard side]
 const pc = ([name, kind, x, y, w, d, h, z = 0, headSide = ""], i) => ({ id: kind + i, name, kind, x, y, w, d, h, z, color: KIND_COLOR[kind],
@@ -42,30 +44,30 @@ const pc = ([name, kind, x, y, w, d, h, z = 0, headSide = ""], i) => ({ id: kind
 const layout = (id, name, note, why, rows) => ({ id, name, note, why, items: rows.map(pc) });
 const BUILTIN = [
   layout("b3", "Bed facing the window", "wake to light",
-    "Bed turned with its head on the east wall and its foot toward the window, so the middle of the room is one open floor. A tall PAX wardrobe fills the north-west corner facing south, with a KALLAX shoe tower beside it and clear of the door swing. Its doors open onto clear floor: the MALM tall chest starts on the west wall just past them, and the open RIGGA rack runs along the in-push facing south, 30 in from the bed. A small nightstand stands at the head of the bed's open side; it leaves 14 in in front of the rack's east end. The bench sits across the foot of the bed. No ceiling light: a floor lamp stands in the window corner, a plug-in swing-arm sconce over the bed's head corner, just above the headboard, is the reading light, and your BÖJA, Mika and PELARBOJ lamps sit on the chest, the nightstand and the KALLAX. Tightest walkway is 27 in, between the bench and the window wall; the lamp sits at its dead end. The open rack is visible clutter.", [
+    "Bed turned with its head on the east wall and its foot toward the window, so the middle of the room is one open floor. A tall PAX wardrobe fills the north-west corner facing south, with a KALLAX shoe tower beside it and clear of the door swing. Its doors open onto clear floor: the MALM tall chest starts on the west wall just past them, and the open RIGGA rack runs along the in-push facing south, 30 in from the bed. A small nightstand stands at the head of the bed's open side; it leaves 14 in in front of the rack's east end. The bench sits across the foot of the bed. The snowboard hangs upright on the south wall at the window end of the bench, with its boots on a tray under it, so it sits in the dead end beside the floor lamp. No ceiling light: a floor lamp stands in the window corner, a plug-in swing-arm sconce over the bed's head corner, just above the headboard, is the reading light, and your BÖJA, Mika and PELARBOJ lamps sit on the chest, the nightstand and the KALLAX. Tightest walkway is 27 in, between the bench and the window wall; the lamp sits at its dead end. The open rack is visible clutter.", [
     ["Bed", "bed", 43, 98, 86, 66, 24, 0, "E"], [BENCH, "ottoman", 27, 117, 16, 46, 18],
     ["PAX wardrobe 39 3/8, tall", "wardrobe", 0, 0, 39.375, 22.875, 93.125], ["KALLAX 1x4 shoe tower", "shoe", 39.375, 0, 15.375, 16.5, 57.875],
     ["MALM 6-drawer tall chest", "dresser", 0, 44, 18.875, 31.5, 48.375],
     ["RIGGA clothes rack", "rack", 85.25, 48, 43.75, 20.125, 68.875], ["Small nightstand, 1 drawer", "nightstand", 117, 82, 12, 16, 24], ["Jute rug 5'3 x 7'7", "rug", 36, 48, 90.5, 63, 0.5],
-    ["Floor lamp", "lamp", 1, 151, 12, 12, 64], ["Plug-in swing-arm sconce", "sconce", 125, 99, 4, 6, 12, 46], ["Mika cactus lamp (yours)", "lamp", 119, 86, 8, 8, 15, 24],
+    ["Floor lamp", "lamp", 1, 151, 12, 12, 64], ["Snowboard wall rack", "board", 14, 156, 12, 8, 63, 16], ["Snowboard boots on a tray", "boots", 13, 149, 14, 15, 12], ["Plug-in swing-arm sconce", "sconce", 125, 99, 4, 6, 12, 46], ["Mika cactus lamp (yours)", "lamp", 119, 86, 8, 8, 15, 24],
     ["BÖJA table lamp (yours)", "lamp", 4.5, 55, 9.75, 9.75, 9.5, 48.375], ["PELARBOJ glow lamp (yours)", "lamp", 44.75, 6, 4.5, 4.5, 4, 57.875],
     ["Yosemite panorama", "art", 128, 107, 1, 48, 30, 54], ["Park print", "art", 55, 163, 18, 1, 24, 50], ["Park print", "art", 77, 163, 18, 1, 24, 50], ["Park print", "art", 99, 163, 18, 1, 24, 50], ["Adire wall hanging", "textile", 128, 68.25, 1, 29.5, 40, 54], ["Framed topo map", "art", 0, 47.75, 1, 24, 24, 56], ["Summit photos", "art", 100, 48, 24, 1, 20, 72]]),
   layout("a1", "Corner bed, maximum storage", "most storage",
-    "Bed in the south-east corner. A tall PAX wardrobe in the north-west corner takes hanging clothes with the KALLAX shoe tower beside it, and a 63 in MALM dresser sits under the window and doubles as the nightstand. Bench stays at the foot. No ceiling light: a floor lamp stands in the corner north of the bed, a plug-in swing-arm sconce on the south wall, just above the headboard's open corner, is the reading light, and your BÖJA and Mika lamps sit on the dresser with the PELARBOJ on the KALLAX. Main walkway is 51 in; the tightest spot is 24 in in front of the wardrobe doors. The bed is reachable from one side only and the north-west corner is furniture-heavy.", [
+    "Bed in the south-east corner. A tall PAX wardrobe in the north-west corner takes hanging clothes with the KALLAX shoe tower beside it, and a 63 in MALM dresser sits under the window and doubles as the nightstand. Bench stays at the foot. The snowboard hangs upright on the east wall in the corner by the in-push, its boots on a tray under it. No ceiling light: a floor lamp stands just north of the bed's foot corner, a plug-in swing-arm sconce on the south wall, just above the headboard's open corner, is the reading light, and your BÖJA and Mika lamps sit on the dresser with the PELARBOJ on the KALLAX. Main walkway is 51 in; the tightest spot is 24 in in front of the wardrobe doors. The bed is reachable from one side only and the north-west corner is furniture-heavy.", [
     ["Bed", "bed", 63, 78, 66, 86, 24, 0, "S"], [BENCH, "ottoman", 64, 62, 46, 16, 18],
     ["PAX wardrobe 39 3/8, tall", "wardrobe", 0, 0, 39.375, 22.875, 93.125], ["MALM 6-drawer dresser", "dresser", 0, 145.125, 63, 18.875, 30.75],
     ["KALLAX 1x4 shoe tower", "shoe", 39.375, 0, 15.375, 16.5, 57.875], ["Hook rail", "other", 104, 48, 18.875, 3.5, 5.5, 62],
     ["Runner rug 30 x 84", "rug", 28, 55, 30, 84, 0.5],
-    ["Floor lamp", "lamp", 116, 53, 12, 12, 64], ["Plug-in swing-arm sconce", "sconce", 63, 160, 6, 4, 12, 46], ["BÖJA table lamp (yours)", "lamp", 51, 150, 9.75, 9.75, 9.5, 30.75],
+    ["Floor lamp", "lamp", 117, 65, 12, 12, 64], ["Snowboard wall rack", "board", 121, 52, 8, 12, 63, 16], ["Snowboard boots on a tray", "boots", 115, 51, 14, 14, 12], ["Plug-in swing-arm sconce", "sconce", 63, 160, 6, 4, 12, 46], ["BÖJA table lamp (yours)", "lamp", 51, 150, 9.75, 9.75, 9.5, 30.75],
     ["Mika cactus lamp (yours)", "lamp", 4, 150, 8, 8, 15, 30.75], ["PELARBOJ glow lamp (yours)", "lamp", 44.75, 6, 4.5, 4.5, 4, 57.875],
     ["Yosemite panorama", "art", 72, 163, 48, 1, 32, 54], ["Trip photo grid", "art", 8, 163, 48, 1, 28, 38], ["Adire wall hanging", "textile", 128, 90, 1, 30, 40, 48], ["Framed topo map", "art", 0, 53, 1, 24, 28, 44], ["Summit photo", "art", 40, 0, 14, 1, 20, 66]]),
   layout("a3", "Centred bed, both sides open", "two-sided bed",
-    "Bed stays almost where it is, so you can get in from either side: 38 in on the west (22 in beside the low chest under the window), 25 in on the east. Tall PAX in the north-west corner with the KALLAX shoe tower beside it, a narrow KULLEN 5-drawer chest south of the in-push, a low KULLEN 3-drawer chest under the window, a nightstand and a shelf over the headboard. No ceiling light: a pair of plug-in swing-arm sconces sit just above the headboard's two corners, a floor lamp stands on the west wall between the closet door and the window, and your BÖJA, Mika and PELARBOJ lamps sit on the tall chest, the nightstand and the KALLAX. Bench keeps its place at the foot. Tightest walkway is 22 in.", [
+    "Bed stays almost where it is, so you can get in from either side: 38 in on the west (22 in beside the low chest under the window), 25 in on the east. Tall PAX in the north-west corner with the KALLAX shoe tower beside it, a narrow KULLEN 5-drawer chest south of the in-push, a low KULLEN 3-drawer chest under the window, a nightstand and a shelf over the headboard. The snowboard hangs upright on the west wall just north of the closet door, its boots on a tray under it. No ceiling light: a pair of plug-in swing-arm sconces sit just above the headboard's two corners, a floor lamp stands on the west wall between the closet door and the window, and your BÖJA, Mika and PELARBOJ lamps sit on the tall chest, the nightstand and the KALLAX. Bench keeps its place at the foot. Tightest walkway is 22 in.", [
     ["Bed", "bed", 38, 78, 66, 86, 24, 0, "S"], [BENCH, "ottoman", 39, 62, 46, 16, 18],
     ["PAX wardrobe 39 3/8, tall", "wardrobe", 0, 0, 39.375, 22.875, 93.125], ["KALLAX 1x4 shoe tower", "shoe", 39.375, 0, 15.375, 16.5, 57.875],
     ["KULLEN 5-drawer chest", "dresser", 113.25, 48, 15.75, 27.5, 44.125], ["KULLEN 3-drawer chest", "dresser", 0, 136.5, 15.75, 27.5, 28.375], ["MALM 2-drawer nightstand", "nightstand", 110.125, 148.25, 18.875, 15.75, 21.625],
-    ["Wall shelf over bed", "other", 49, 153.75, 43.25, 10.25, 2, 60], ["Hook rail", "other", 0, 50, 3.5, 18.875, 5.5, 62],
-    ["Rug 60 x 96", "rug", 14, 48, 96, 60, 0.5],
+    ["Wall shelf over bed", "other", 49, 153.75, 43.25, 10.25, 2, 60], ["Hook rail", "other", 0, 46.5, 3.5, 18.875, 5.5, 62],
+    ["Rug 60 x 96", "rug", 14, 48, 96, 60, 0.5], ["Snowboard wall rack", "board", 0, 66, 8, 12, 63, 16], ["Snowboard boots on a tray", "boots", 0, 65, 15, 14, 12],
     ["Floor lamp", "lamp", 1, 119, 12, 12, 64], ["Plug-in swing-arm sconce", "sconce", 38, 160, 6, 4, 12, 46], ["Plug-in swing-arm sconce", "sconce", 98, 160, 6, 4, 12, 46],
     ["BÖJA table lamp (yours)", "lamp", 116, 60, 9.75, 9.75, 9.5, 44.125], ["Mika cactus lamp (yours)", "lamp", 114, 152, 8, 8, 15, 21.625], ["PELARBOJ glow lamp (yours)", "lamp", 44.75, 6, 4.5, 4.5, 4, 57.875],
     ["Park print", "art", 52, 163, 18, 1, 22, 63], ["Park print", "art", 73, 163, 18, 1, 22, 63], ["Adire wall hanging", "textile", 128, 85, 1, 30, 45, 40], ["Framed topo map", "art", 0, 44, 1, 20, 28, 72], ["Summit photos", "art", 102, 48, 24, 1, 20, 50], ["Summit photo", "art", 40, 0, 14, 1, 20, 66]])
@@ -376,7 +378,7 @@ function tier(gap) { return gap <= state.room.flush ? "flush" : gap <= state.roo
 function kindOf(it) {
   if (it.kind) return it.kind;
   const nm = it.name.toLowerCase();
-  const table = [["nightstand", /night|bedside/], ["bed", /\bbed\b/], ["ottoman", /ottoman|storage bench|upholstered/], ["bench", /bench/], ["shoe", /shoe/], ["wardrobe", /wardrobe|armoire|pax/],
+  const table = [["board", /snowboard(?! boot)/], ["boots", /boot/], ["ladder", /ladder/], ["beanbag", /bean ?bag/], ["nightstand", /night|bedside/], ["bed", /\bbed\b/], ["ottoman", /ottoman|storage bench|upholstered/], ["bench", /bench/], ["shoe", /shoe/], ["wardrobe", /wardrobe|armoire|pax/],
     ["rack", /rack|rail/], ["dresser", /dresser|drawer|chest/], ["shelf", /shel|book/], ["chair", /chair|sofa/], ["rug", /rug|carpet/],
     ["mirror", /mirror/], ["sconce", /sconce/], ["lamp", /lamp/], ["plant", /plant/],
     ["textile", /hanging|tapestry|textile/], ["pegs", /peg/], ["art", /art|print|photo|poster|map|frame|panorama/]];

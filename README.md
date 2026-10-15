@@ -12,6 +12,9 @@ A planner for Femi's San Francisco bedroom, built from his own measurements. Inc
   turns off daylight and the ceiling fixture and lights each lamp and sconce. Its bulb control sets
   every lamp to a white temperature (2500 to 6500K, the Tapo L535E's range) or any colour, and
   remembers the choice in that browser.
+- **Gear:** every ready-made layout hangs Femi's snowboard upright on a wall rack, bindings on,
+  with his boots on a tray under it. A board's model lies flat instead when it is wider than tall.
+  The furniture list also offers a leaning ladder shelf and a bean bag.
 - **On a phone** the 3D page is a viewer: the layouts are tabs, there is no editing panel, a drag
   turns the room and a tap names a piece. A screen at most 760 px wide or 500 px tall counts
   as a phone. Editing needs a wider screen.
