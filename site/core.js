@@ -26,7 +26,7 @@ const PRESETS = [
   ["Armchair", 32, 34, 32, 0, "#7fae8f", true, "chair"], ["Rug", 96, 60, 0.5, 0, "#d9a5a0", false, "rug"],
   ["Wall shelf", 36, 8, 2, 60, "#a8a29e", true, "other"], ["Mirror", 24, 1, 60, 12, "#9fc5d8", true, "mirror"],
   ["Floor lamp", 12, 12, 64, 0, "#e3c66b", true, "lamp"], ["Table lamp", 10, 10, 18, 0, "#e3c66b", true, "lamp"], ["Plug-in sconce", 6, 4, 12, 46, "#e3c66b", true, "sconce"],
-  ["Ladder shelf", 24, 16, 72, 0, "#b08a62", true, "ladder"], ["Bean bag", 36, 34, 26, 0, "#a65d3f", true, "beanbag"],
+  ["Ladder shelf", 24, 16, 72, 0, "#b08a62", true, "ladder"], ["Bean bag", 36, 34, 26, 0, "#b5653f", true, "beanbag"],
   ["Snowboard wall rack", 12, 8, 63, 16, "#2f5d7c", true, "board"], ["Snowboard boots on a tray", 14, 15, 12, 0, "#2b2d33", true, "boots"],
   ["Framed art", 24, 1, 30, 50, "#efe4cc", true, "art"], ["Wall hanging", 30, 1, 45, 40, "#3f5f9e", true, "textile"], ["Peg rail with gear", 36, 2, 20, 50, "#c9b592", true, "pegs"],
   ["Custom box", 24, 24, 24, 0, "#bdbdbd", true, "other"]
@@ -34,9 +34,13 @@ const PRESETS = [
 const KINDS = { bed: "Bed", bench: "Bench", ottoman: "Upholstered storage bench", dresser: "Dresser / drawers", wardrobe: "Wardrobe", rack: "Clothes rack", shoe: "Shoe storage",
   nightstand: "Nightstand", shelf: "Shelving", ladder: "Ladder shelf", beanbag: "Bean bag", board: "Snowboard on a wall rack", boots: "Snowboard boots", chair: "Chair", rug: "Rug", mirror: "Mirror",
   art: "Framed art", textile: "Wall hanging", pegs: "Peg rail with gear", lamp: "Lamp", sconce: "Wall sconce", plant: "Plant", other: "Plain box" };
+// Femi's palette, Clay and indigo. The walls are rented cream plaster and can't be painted, so the
+// colour comes from what he owns (sage wardrobe and comforter, wood, cane, black-brown) plus a
+// terracotta throw and bean bag, an indigo pillow echoing his Adire, jute rugs and olive-painted chests.
+const THEME = { name: "Clay and indigo", walls: "#eadfcc", floor: "#9a5530", sheets: "#ddd3c1", throw: "#b5653f", accent: "#2f4a7a" };
 // Starting points that ship with the page.
-const KIND_COLOR = { bed: "#a9ae95", bench: "#a9825a", ottoman: "#4a4d55", dresser: "#b98b5e", wardrobe: "#6b8462", rack: "#9aa3ad", shoe: "#2a2421",
-  nightstand: "#8b4a24", shelf: "#9c7b55", ladder: "#b08a62", beanbag: "#a65d3f", board: "#2f5d7c", boots: "#2b2d33", chair: "#7fae8f", rug: "#d9a5a0", mirror: "#9fc5d8", lamp: "#e3c66b", sconce: "#e3c66b", plant: "#7fae8f",
+const KIND_COLOR = { bed: "#a9ae95", bench: "#a9825a", ottoman: "#4a4d55", dresser: "#4b5638", wardrobe: "#6b8462", rack: "#9aa3ad", shoe: "#2a2421",
+  nightstand: "#8b4a24", shelf: "#9c7b55", ladder: "#b08a62", beanbag: "#b5653f", board: "#2f5d7c", boots: "#2b2d33", chair: "#7fae8f", rug: "#c8b48a", mirror: "#9fc5d8", lamp: "#e3c66b", sconce: "#e3c66b", plant: "#7fae8f",
   art: "#efe4cc", textile: "#3f5f9e", pegs: "#c9b592", other: "#bdbdbd" };
 // [name, kind, x, y, width, depth, height, off floor, headboard side]
 const pc = ([name, kind, x, y, w, d, h, z = 0, headSide = ""], i) => ({ id: kind + i, name, kind, x, y, w, d, h, z, color: KIND_COLOR[kind],
@@ -47,7 +51,7 @@ const BUILTIN = [
     "Bed turned with its head on the east wall and its foot toward the window, so the middle of the room is one open floor. Your green VILHATTEN wardrobe fills the north-west corner facing south, with the black LACK shoe shelf beside it and clear of the door swing. Its doors open onto clear floor: the MALM tall chest starts on the west wall just past them. A ladder shelf leans on the in-push facing south, under the summit photos. Your wood nightstand stands at the head of the bed's open side. The bench sits across the foot of the bed. The snowboard hangs upright on the south wall at the window end of the bench, with its boots on a tray under it, so it sits in the dead end beside the floor lamp. No ceiling light: a floor lamp stands in the window corner, a plug-in swing-arm sconce over the bed's head corner, just above the headboard, is the reading light, and your BÖJA, Mika and PELARBOJ lamps sit on the chest, the nightstand and the top of the shoe shelf. Tightest walkway is 27 in, between the bench and the window wall; the lamp sits at its dead end.", [
     ["Bed", "bed", 43, 98, 86, 66, 24, 0, "E"], [BENCH, "ottoman", 27, 117, 16, 46, 18],
     ["VILHATTEN wardrobe, green", "wardrobe", 0, 0, 38.625, 22.5, 74.75], ["LACK shoe shelf, black-brown", "shoe", 38.625, 0, 11.75, 11, 74.75],
-    ["MALM 6-drawer tall chest", "dresser", 0, 44, 18.875, 31.5, 48.375],
+    ["MALM 6-drawer tall chest, painted olive", "dresser", 0, 44, 18.875, 31.5, 48.375],
     ["Ladder shelf", "ladder", 101, 48, 24, 16, 72], ["Your nightstand, rattan drawer", "nightstand", 112, 81, 17, 17, 22], ["Jute rug 5'3 x 7'7", "rug", 36, 48, 90.5, 63, 0.5],
     ["Floor lamp", "lamp", 1, 151, 12, 12, 64], ["Snowboard wall rack", "board", 14, 156, 12, 8, 63, 16], ["Snowboard boots on a tray", "boots", 13, 149, 14, 15, 12], ["Plug-in swing-arm sconce", "sconce", 125, 99, 4, 6, 12, 46], ["Mika cactus lamp (yours)", "lamp", 116, 85, 8, 8, 15, 22],
     ["BÖJA table lamp (yours)", "lamp", 5.375, 55.875, 8, 8, 16, 48.375], ["PELARBOJ glow lamp (yours)", "lamp", 42.25, 3, 4.5, 4.5, 4, 74.75],
@@ -55,9 +59,9 @@ const BUILTIN = [
   layout("a1", "Corner bed, maximum storage", "most storage",
     "Bed in the south-east corner. Your green VILHATTEN wardrobe in the north-west corner takes hanging clothes with the black LACK shoe shelf beside it, and a 63 in MALM dresser sits under the window and doubles as the nightstand. Bench stays at the foot. The snowboard hangs upright on the east wall in the corner by the in-push, its boots on a tray under it. No ceiling light: a floor lamp stands just north of the bed's foot corner, a plug-in swing-arm sconce on the south wall, just above the headboard's open corner, is the reading light, and your BÖJA and Mika lamps sit on the dresser with the PELARBOJ on top of the shoe shelf. Main walkway is 51 in; the tightest spot is 24 in in front of the wardrobe doors. The bed is reachable from one side only and the north-west corner is furniture-heavy.", [
     ["Bed", "bed", 63, 78, 66, 86, 24, 0, "S"], [BENCH, "ottoman", 64, 62, 46, 16, 18],
-    ["VILHATTEN wardrobe, green", "wardrobe", 0, 0, 38.625, 22.5, 74.75], ["MALM 6-drawer dresser", "dresser", 0, 145.125, 63, 18.875, 30.75],
+    ["VILHATTEN wardrobe, green", "wardrobe", 0, 0, 38.625, 22.5, 74.75], ["MALM 6-drawer dresser, painted olive", "dresser", 0, 145.125, 63, 18.875, 30.75],
     ["LACK shoe shelf, black-brown", "shoe", 38.625, 0, 11.75, 11, 74.75], ["Hook rail", "other", 104, 48, 18.875, 3.5, 5.5, 62],
-    ["Runner rug 30 x 84", "rug", 28, 55, 30, 84, 0.5],
+    ["Jute runner 30 x 84", "rug", 28, 55, 30, 84, 0.5],
     ["Floor lamp", "lamp", 117, 65, 12, 12, 64], ["Snowboard wall rack", "board", 121, 52, 8, 12, 63, 16], ["Snowboard boots on a tray", "boots", 115, 51, 14, 14, 12], ["Plug-in swing-arm sconce", "sconce", 63, 160, 6, 4, 12, 46], ["BÖJA table lamp (yours)", "lamp", 51.875, 150.875, 8, 8, 16, 30.75],
     ["Mika cactus lamp (yours)", "lamp", 4, 150, 8, 8, 15, 30.75], ["PELARBOJ glow lamp (yours)", "lamp", 42.25, 3, 4.5, 4.5, 4, 74.75],
     ["Yosemite panorama", "art", 72, 163, 48, 1, 32, 54], ["Trip photo grid", "art", 8, 163, 48, 1, 28, 38], ["Adire wall hanging", "textile", 128, 90, 1, 30, 40, 48], ["Framed topo map", "art", 0, 53, 1, 24, 28, 44], ["Summit photo", "art", 37.5, 0, 14, 1, 20, 80]]),
@@ -65,9 +69,9 @@ const BUILTIN = [
     "Bed stays almost where it is, so you can get in from either side: 38 in on the west (22 in beside the low chest under the window), 25 in on the east. Your green VILHATTEN wardrobe in the north-west corner with the black LACK shoe shelf beside it, a narrow KULLEN 5-drawer chest south of the in-push, a low KULLEN 3-drawer chest under the window, a nightstand and a shelf over the headboard. The snowboard hangs upright on the west wall just north of the closet door, its boots on a tray under it. No ceiling light: a pair of plug-in swing-arm sconces sit just above the headboard's two corners, a floor lamp stands on the west wall between the closet door and the window, and your BÖJA, Mika and PELARBOJ lamps sit on the tall chest, the nightstand and the top of the shoe shelf. Bench keeps its place at the foot. Tightest walkway is 22 in.", [
     ["Bed", "bed", 38, 78, 66, 86, 24, 0, "S"], [BENCH, "ottoman", 39, 62, 46, 16, 18],
     ["VILHATTEN wardrobe, green", "wardrobe", 0, 0, 38.625, 22.5, 74.75], ["LACK shoe shelf, black-brown", "shoe", 38.625, 0, 11.75, 11, 74.75],
-    ["KULLEN 5-drawer chest", "dresser", 113.25, 48, 15.75, 27.5, 44.125], ["KULLEN 3-drawer chest", "dresser", 0, 136.5, 15.75, 27.5, 28.375], ["MALM 2-drawer nightstand", "nightstand", 110.125, 148.25, 18.875, 15.75, 21.625],
+    ["KULLEN 5-drawer chest, painted olive", "dresser", 113.25, 48, 15.75, 27.5, 44.125], ["KULLEN 3-drawer chest, painted olive", "dresser", 0, 136.5, 15.75, 27.5, 28.375], ["MALM 2-drawer nightstand", "nightstand", 110.125, 148.25, 18.875, 15.75, 21.625],
     ["Wall shelf over bed", "other", 49, 153.75, 43.25, 10.25, 2, 60], ["Hook rail", "other", 0, 46.5, 3.5, 18.875, 5.5, 62],
-    ["Rug 60 x 96", "rug", 14, 48, 96, 60, 0.5], ["Snowboard wall rack", "board", 0, 66, 8, 12, 63, 16], ["Snowboard boots on a tray", "boots", 0, 65, 15, 14, 12],
+    ["Jute rug 60 x 96", "rug", 14, 48, 96, 60, 0.5], ["Snowboard wall rack", "board", 0, 66, 8, 12, 63, 16], ["Snowboard boots on a tray", "boots", 0, 65, 15, 14, 12],
     ["Floor lamp", "lamp", 1, 119, 12, 12, 64], ["Plug-in swing-arm sconce", "sconce", 38, 160, 6, 4, 12, 46], ["Plug-in swing-arm sconce", "sconce", 98, 160, 6, 4, 12, 46],
     ["BÖJA table lamp (yours)", "lamp", 116.875, 60.875, 8, 8, 16, 44.125], ["Mika cactus lamp (yours)", "lamp", 114, 152, 8, 8, 15, 21.625], ["PELARBOJ glow lamp (yours)", "lamp", 42.25, 3, 4.5, 4.5, 4, 74.75],
     ["Park print", "art", 52, 163, 18, 1, 22, 63], ["Park print", "art", 73, 163, 18, 1, 22, 63], ["Adire wall hanging", "textile", 128, 85, 1, 30, 45, 40], ["Framed topo map", "art", 0, 44, 1, 20, 28, 72], ["Summit photos", "art", 102, 48, 24, 1, 20, 50], ["Summit photo", "art", 37.5, 0, 14, 1, 20, 80]])

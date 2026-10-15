@@ -220,7 +220,7 @@ const grainTex = canvasTex(256, 256, (g, w, h) => {
 });
 const wood = c => cached("w" + col(c).getHexString(), () => new THREE.MeshStandardMaterial({ color: col(c), roughness: 0.62, map: grainTex }));
 const METAL = M("#b9bdc2", 0.3, 0.9), DARK_METAL = M("#3a3b3f", 0.4, 0.8), BRASS = M("#b08d57", 0.35, 0.85);
-const TRIM = M("#fbfaf6", 0.55), WALL = M("#f1ede3", 0.95), LINEN = M("#f4f1ea", 0.95);
+const TRIM = M("#fbfaf6", 0.55), WALL = M(THEME.walls, 0.95);
 const MIRROR = new THREE.MeshStandardMaterial({ color: 0xe6edf2, roughness: 0.03, metalness: 1, envMapIntensity: 2.2 });
 const GLASS = new THREE.MeshStandardMaterial({ color: 0xcfe8f5, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.28 });
 const SKY = new THREE.MeshBasicMaterial({ color: 0xd9ecf7 });
@@ -593,30 +593,40 @@ function fronts(g, width, y0, y1, z, rows, cols, m, handle) {
     if (handle === "pull") bxm(g, cw * 0.4, 0.5, 0.7, x, y + ch - 2.4, z + 0.7, DARK_METAL);
   }
 }
-function chest(g, { a, dp, h, c }, leg, maxRows) {
-  const body = wood(c);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) bxm(g, 1.6, leg, 1.6, sx * (a / 2 - 1.4), 0, sz * (dp / 2 - 1.4), wood(shade(c, -0.35)));
-  bxm(g, a, h - leg - 1, dp - 0.7, 0, leg, -0.35, body);
-  bxm(g, a, 1, dp, 0, h - 1, 0, wood(shade(c, -0.12)), 0.2);
-  fronts(g, a - 1.2, leg + 0.6, h - 1.5, dp / 2 - 0.7, clamp(Math.round((h - leg) / 9), 1, maxRows), a > 44 ? 2 : 1, wood(shade(c, 0.14)), "knob");
+function chest(g, { a, dp, h, c, name }, leg, maxRows) {
+  const surface = /painted/.test(name) ? k => M(shade(c, k), 0.7) : k => wood(shade(c, k)); // paint is matte, with no grain
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) bxm(g, 1.6, leg, 1.6, sx * (a / 2 - 1.4), 0, sz * (dp / 2 - 1.4), surface(-0.35));
+  bxm(g, a, h - leg - 1, dp - 0.7, 0, leg, -0.35, surface(0));
+  bxm(g, a, 1, dp, 0, h - 1, 0, surface(-0.12), 0.2);
+  fronts(g, a - 1.2, leg + 0.6, h - 1.5, dp / 2 - 0.7, clamp(Math.round((h - leg) / 9), 1, maxRows), a > 44 ? 2 : 1, surface(0.14), "knob");
 }
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 
 const MODELS = {
-  // Femi's bed: grey upholstered frame and channel-tufted headboard, white sheets, a sage quilted comforter.
+  // Femi's bed: grey upholstered frame and channel-tufted headboard, linen sheets and pillows, a sage
+  // quilted comforter with shams to match, and the palette's indigo pillow and terracotta throw.
   bed(g, { it, a, dp, h, c }) {
     const hb = it.headH > 0 ? Math.min(it.headT, dp) : 0, len = dp - hb, zc = hb / 2, foot = zc + len / 2;
     const legH = Math.min(3, h * 0.12), railH = Math.min(10, h * 0.4), frame = fabricMat(BED_FABRIC), legs = M("#2a2a2c", 0.6);
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) bxm(g, 2, legH, 2, sx * (a / 2 - 2.5), 0, zc + sz * (len / 2 - 2.5), legs);
     bxm(g, a, railH, len, 0, legH, zc, frame, 1.2);
     const mBot = legH + railH - 1.5, mh = Math.max(h - mBot, 2);
-    bxm(g, a - 2, mh, len - 2, 0, mBot, zc, LINEN, 1.8);
+    const sheets = M(THEME.sheets, 0.95);
+    bxm(g, a - 2, mh, len - 2, 0, mBot, zc, sheets, 1.8);
     const dl = len * 0.7, side = M(c, 0.95);
     const duvet = bxm(g, a + 0.8, mh * 0.8 + 1.2, dl, 0, h - mh * 0.8, foot - dl / 2 + 0.3, side, 1.6);
     duvet.material = [side, side, quiltMat(c, (a + 0.8) / dl), side, side, side];
-    bxm(g, a + 1, 1.4, 7, 0, h + 0.5, foot - dl + 2, M(shade(c, 0.3), 0.95), 0.6); // turned-down top edge
-    const pw = (a - 9) / 2;
-    for (const sx of [-1, 1]) bxm(g, pw, 5, 16, sx * (pw / 2 + 1.5), h - 0.4, zc - len / 2 + 10, LINEN, 2.2).rotation.x = -0.22;
+    bxm(g, a + 1, 1.4, 7, 0, h + 0.5, foot - dl + 2, sheets, 0.6); // sheet turned down over the comforter
+    // sleeping pillows in linen, the comforter's shams leaning in front, and one indigo pillow
+    const pw = (a - 9) / 2, head = zc - len / 2, shams = M(c, 0.95);
+    for (const sx of [-1, 1]) bxm(g, pw, 5, 16, sx * (pw / 2 + 1.5), h - 0.4, head + 10, sheets, 2.2).rotation.x = -0.22;
+    for (const sx of [-1, 1]) bxm(g, pw - 2, 5.5, 15, sx * (pw / 2 + 1.5), h + 1.2, head + 15, shams, 2.4).rotation.x = -0.75;
+    bxm(g, Math.min(20, a * 0.32), 4.5, 10, 0, h + 1.6, head + 20, fabricMat(THEME.accent), 2).rotation.x = -0.6;
+    // a throw folded across the foot: a layer on top, a drape down the foot end and a tail over one side
+    const tl = len * 0.28, cloth = fabricMat(THEME.throw), drop = Math.min(10, h * 0.4);
+    bxm(g, a + 1.6, 0.9, tl, 0, h + 1.2, foot - tl / 2 + 0.3, cloth, 0.4);
+    bxm(g, a * 0.94, drop, 0.9, -a * 0.03, h + 2.1 - drop, foot + 0.75, cloth, 0.4);
+    bxm(g, 0.9, drop + 4, tl * 0.75, a / 2 + 1.25, h + 2.1 - drop - 4, foot - tl * 0.45, cloth, 0.4);
     if (hb) {
       bxm(g, a, it.headH, hb, 0, 0, -dp / 2 + hb / 2, frame, 0.8);
       const padH = it.headH - h + 2, pad = bxm(g, a - 0.4, padH, 1.2, 0, h - 2, -dp / 2 + hb + 0.6, frame, 0.5);
@@ -950,13 +960,15 @@ const doorOpen = {}; // opening id -> { t: how far open, 0..1, want: 0 or 1 }
 const show = { grid: false, swings: true, names: false, lamps: false };
 let wallMode = "auto";
 
-const floorMat = new THREE.MeshStandardMaterial({ roughness: 0.55, map: (() => {
+// Old-growth fir boards, a warm orange-brown with a soft sheen, as in Femi's photos.
+const floorMat = new THREE.MeshStandardMaterial({ roughness: 0.4, map: (() => {
   const t = canvasTex(1024, 1024, (g, w, h) => {
-    const r = rng("floor"), rows = 8, ph = h / rows;
+    const r = rng("floor"), rows = 8, ph = h / rows, fir = col(THEME.floor).getHSL({}, THREE.SRGBColorSpace);
     for (let i = 0; i < rows; i++) {
       for (let x = -r() * w * 0.5; x < w;) {
         const len = w * (0.35 + r() * 0.4);
-        g.fillStyle = `hsl(${32 + r() * 6} ${24 + r() * 8}% ${70 + r() * 8}%)`; g.fillRect(x, i * ph, len, ph);
+        // each board varies a little around THEME.floor
+        g.fillStyle = `hsl(${fir.h * 360 - 3 + r() * 6} ${fir.s * 100 - 5 + r() * 10}% ${fir.l * 100 - 3 + r() * 9}%)`; g.fillRect(x, i * ph, len, ph);
         g.strokeStyle = "rgba(60,35,15,.10)";
         for (let k = 0; k < 5; k++) { const y = i * ph + r() * ph; g.beginPath(); g.moveTo(x, y); g.lineTo(x + len, y + (r() - 0.5) * 6); g.stroke(); }
         g.fillStyle = "rgba(40,25,10,.35)"; g.fillRect(x, i * ph, 2, ph);

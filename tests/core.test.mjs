@@ -489,3 +489,24 @@ test("the 3D view models the real pieces: painted wardrobe, LACK shelf, upholste
   assert.match(model("nightstand"), /rattanMat\(/);
   assert.match(model("lamp"), /böja/, "a woven bamboo egg");
 });
+
+test("the room wears the Clay and indigo palette: cream walls stay, accents go on textiles and furniture", () => {
+  const run = loadCore();
+  assert.deepEqual(JSON.parse(run("JSON.stringify(THEME)")),
+    { name: "Clay and indigo", walls: "#eadfcc", floor: "#9a5530", sheets: "#ddd3c1", throw: "#b5653f", accent: "#2f4a7a" });
+  assert.deepEqual(JSON.parse(run(`JSON.stringify([KIND_COLOR.rug, KIND_COLOR.dresser, KIND_COLOR.beanbag])`)), ["#c8b48a", "#4b5638", "#b5653f"]);
+  const out = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => ({
+    rugs: p.items.filter(i => i.kind === "rug").every(i => /jute/i.test(i.name) && i.color === KIND_COLOR.rug),
+    dressers: p.items.filter(i => i.kind === "dresser").every(i => /painted olive/.test(i.name) && i.color === KIND_COLOR.dresser)
+  })))`));
+  for (const p of out) assert.deepEqual(p, { rugs: true, dressers: true });
+});
+
+test("the 3D bed wears linen sheets and pillows, sage shams, an indigo pillow and a terracotta throw", () => {
+  const html = read("index.html");
+  const bed = html.match(/^\s{2}bed\(g, \{[\s\S]*?^\s{2}\},$/m)[0];
+  for (const part of ["THEME.sheets", "THEME.throw", "THEME.accent"]) assert.ok(bed.includes(part), "bed uses " + part);
+  assert.match(bed, /shams/);
+  assert.match(html, /WALL = M\(THEME\.walls/);
+  assert.match(html, /function chest\([^)]*\)[\s\S]*?\/painted\//, "painted chests are matte, not wood-grained");
+});

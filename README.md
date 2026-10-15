@@ -19,6 +19,10 @@ A planner for Femi's San Francisco bedroom, built from his own measurements. Inc
   LACK wall shelf unit beside it as the shoe shelf (11¾ × 11 × 74¾), the grey upholstered bed with a
   channel-tufted headboard under a sage pinch-quilted comforter, his wood nightstand with a cane
   drawer (17 × 17 × 22, estimated from a photo), and the BÖJA woven bamboo egg lamp (8 × 16).
+- **Palette, Clay and indigo** (`THEME` in `core.js`): the walls stay cream, because the room is
+  rented and Femi can't paint them. Colour comes from what he owns plus a terracotta throw over the
+  foot of the bed, an indigo pillow that echoes his Adire hanging, jute rugs and chests painted deep
+  olive. His sheets and sleeping pillows are linen; the shams match the sage comforter.
 - **Gear:** every ready-made layout hangs Femi's snowboard upright on a wall rack, bindings on,
   with his boots on a tray under it. A board's model lies flat instead when it is wider than tall.
   The furniture list also offers a leaning ladder shelf, which the window layout uses on the
