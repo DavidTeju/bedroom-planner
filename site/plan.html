@@ -239,12 +239,16 @@ function planSvg() {
   }
   // rugs and other non-solid pieces go underneath
   for (const it of [...state.items].sort((a, b) => a.solid - b.solid)) {
-    const cls = "item" + (it.id === selId ? " sel" : "") + (isBad(it) ? " bad" : "");
-    g += `<rect class="${cls}" data-id="${it.id}" x="${it.x}" y="${it.y}" width="${it.w}" height="${it.d}" rx="1" fill="${esc(it.color)}"/>`;
+    const cls = "item" + (it.id === selId ? " sel" : "") + (isBad(it) ? " bad" : ""), cx = it.x + it.w / 2, cy = it.y + it.d / 2;
+    // a turned bean bag, plant, lamp or rug is drawn at its angle; its name stays level
+    if (turnOf(it)) g += `<g transform="rotate(${turnOf(it)} ${cx} ${cy})">`;
+    const round = canTurn(it) && kindOf(it) !== "rug"; // bean bags, plants and lamps are round, so a turn doesn't show as a diamond
+    g += `<rect class="${cls}" data-id="${it.id}" x="${it.x}" y="${it.y}" width="${it.w}" height="${it.d}" rx="${round ? Math.min(it.w, it.d) / 2 : 1}" fill="${esc(it.color)}"/>`;
     g += planDeco(it);
+    if (turnOf(it)) g += `</g>`;
     if (Math.min(it.w, it.d) >= 9) {
       // tall narrow footprints get their label turned to run along them
-      const turn = it.d > it.w && it.w < 34, cx = it.x + it.w / 2, cy = it.y + it.d / 2;
+      const turn = it.d > it.w && it.w < 34;
       g += `<g pointer-events="none" transform="translate(${cx} ${cy})${turn ? " rotate(-90)" : ""}"><text y="0" font-size="4" text-anchor="middle" font-weight="600">${esc(it.name)}</text>`;
       if ((turn ? it.w : it.d) >= 16) g += `<text class="t-muted" y="5" font-size="3.4" text-anchor="middle">${n(it.w)} × ${n(it.d)}</text>`;
       g += `</g>`;
@@ -282,9 +286,10 @@ function planSvg() {
   g += `<text class="t-muted" x="${W / 2}" y="${L + P - 1}" font-size="5" text-anchor="middle" font-weight="700">S</text>`;
   g += `<text class="t-muted" x="${-P + 3}" y="${L / 2}" font-size="5" text-anchor="middle" font-weight="700">W</text>`;
   g += `<text class="t-muted" x="${W + P - 3}" y="${by / 2}" font-size="5" text-anchor="middle" font-weight="700">E</text>`;
-  const it = sel();
-  if (it) {
-    const c = clearances(it), cx = it.x + it.w / 2, cy = it.y + it.d / 2;
+  const picked = sel();
+  if (picked) {
+    // gaps to the walls run from the box a turned piece takes up
+    const it = footprint(picked), c = clearances(picked), cx = it.x + it.w / 2, cy = it.y + it.d / 2;
     const gapLine = (x1, y1, x2, y2, v, tx, ty) => v > 0.5
       ? `<line class="clear" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/><text class="clear-t" x="${tx}" y="${ty}" font-size="3.8" text-anchor="middle">${n(v)}</text>` : "";
     g += `<g pointer-events="none">`;

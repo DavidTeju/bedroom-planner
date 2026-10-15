@@ -147,9 +147,24 @@ const uid = () => "i" + Date.now().toString(36) + Math.floor(Math.random() * 1e4
 
 /* ---------- geometry ---------- */
 const bumpRect = () => { const r = state.room; return { x: r.W - r.bx, y: 0, w: r.bx, d: r.by }; };
-const overlap = (a, b) => a.x < b.x + b.w - 0.01 && b.x < a.x + a.w - 0.01 && a.y < b.y + b.d - 0.01 && b.y < a.y + a.d - 0.01;
+// Round and soft pieces, and rugs, can sit at any angle; hard furniture stays square to the walls.
+// A turned piece keeps its own width and depth, and the rules use the wall-aligned box that holds
+// it, which for a round piece is barely larger.
+const TURNABLE = new Set(["beanbag", "plant", "lamp", "rug"]);
+const canTurn = it => TURNABLE.has(kindOf(it));
+const turnOf = it => canTurn(it) ? ((it.turn || 0) % 360 + 360) % 360 : 0;
+function footprint(it) {
+  const t = it.turn ? turnOf(it) * Math.PI / 180 : 0;
+  if (!t) return it;
+  const c = Math.abs(Math.cos(t)), s = Math.abs(Math.sin(t));
+  const [w, d] = kindOf(it) === "rug"
+    ? [it.w * c + it.d * s, it.w * s + it.d * c]
+    : [2 * Math.hypot(it.w / 2 * c, it.d / 2 * s), 2 * Math.hypot(it.w / 2 * s, it.d / 2 * c)];
+  return { x: it.x + (it.w - w) / 2, y: it.y + (it.d - d) / 2, w, d };
+}
+const overlap = (a, b) => { a = footprint(a); b = footprint(b); return a.x < b.x + b.w - 0.01 && b.x < a.x + a.w - 0.01 && a.y < b.y + b.d - 0.01 && b.y < a.y + a.d - 0.01; };
 const topOf = it => it.z + Math.max(it.h, it.headH || 0);
-function outside(it) { const r = state.room; return it.x < 0 || it.y < 0 || it.x + it.w > r.W || it.y + it.d > r.L; }
+function outside(it) { const r = state.room, f = footprint(it); return f.x < 0 || f.y < 0 || f.x + f.w > r.W || f.y + f.d > r.L; }
 // Everything this item is not allowed to overlap: the in-push, and other solid pieces at the same height.
 function blockers(it) {
   const out = [];
@@ -167,35 +182,36 @@ function slide(it, axis, target) {
   it[axis] = target;
   const hit = blockers(it);
   if (!hit.length) return;
-  const stops = hit.map(b => target > old ? b[axis] - it[size] : b[axis] + b[size]);
+  const f = footprint(it), off = f[axis] - it[axis];
+  const stops = hit.map(b => target > old ? b[axis] - f[size] - off : b[axis] + b[size] - off);
   const stop = target > old ? Math.min(...stops) : Math.max(...stops);
   it[axis] = stop;
   if ((target > old ? stop < old : stop > old) || blockers(it).length) it[axis] = old;
 }
 function moveTo(it, x, y) {
-  const r = state.room;
-  slide(it, "x", Math.min(Math.max(x, 0), Math.max(r.W - it.w, 0)));
-  slide(it, "y", Math.min(Math.max(y, 0), Math.max(r.L - it.d, 0)));
+  const r = state.room, f = footprint(it), ox = f.x - it.x, oy = f.y - it.y;
+  slide(it, "x", Math.min(Math.max(x, -ox), Math.max(r.W - f.w - ox, -ox)));
+  slide(it, "y", Math.min(Math.max(y, -oy), Math.max(r.L - f.d - oy, -oy)));
 }
 // Put a new piece in the first open spot, scanning from where it was asked to go.
 function placeFree(it) {
   if (!blockers(it).length) return;
-  const r = state.room, x0 = it.x, y0 = it.y;
-  for (let y = 0; y <= r.L - it.d; y += 3) for (let x = 0; x <= r.W - it.w; x += 3) {
-    it.x = x; it.y = y;
+  const r = state.room, x0 = it.x, y0 = it.y, f = footprint(it), ox = f.x - it.x, oy = f.y - it.y;
+  for (let y = 0; y <= r.L - f.d; y += 3) for (let x = 0; x <= r.W - f.w; x += 3) {
+    it.x = x - ox; it.y = y - oy;
     if (!blockers(it).length) return;
   }
   it.x = x0; it.y = y0;
 }
-function clearances(it) {
-  const r = state.room;
+function clearances(item) {
+  const r = state.room, it = footprint(item);
   const northWall = it.x + it.w > r.W - r.bx ? r.by : 0;
   const eastWall = it.y < r.by ? r.W - r.bx : r.W;
   return { N: it.y - northWall, S: r.L - (it.y + it.d), W: it.x, E: eastWall - (it.x + it.w), northWall, eastWall };
 }
 // The boxes that make up a piece: its body, plus a headboard strip if it has one.
 function parts(it) {
-  const out = [{ it, x: it.x, y: it.y, w: it.w, d: it.d, z: it.z, h: it.h, head: false }];
+  const f = footprint(it), out = [{ it, x: f.x, y: f.y, w: f.w, d: f.d, z: it.z, h: it.h, head: false }];
   if (it.headH > 0) {
     const t = Math.min(it.headT, it.headSide === "N" || it.headSide === "S" ? it.d : it.w);
     const p = { it, x: it.x, y: it.y, w: it.w, d: it.d, z: it.z, h: it.headH, head: true };
@@ -224,10 +240,9 @@ function swingGeom(o) {
   const [hx, hy, fx, fy] = o.hinge === "start" ? [s.x1, s.y1, s.x2, s.y2] : [s.x2, s.y2, s.x1, s.y1];
   return { hx, hy, fx, fy, ox: hx + s.nx * dir * o.w, oy: hy + s.ny * dir * o.w, r: o.w, inward: dir === 1 };
 }
-// True when an item sits inside the quarter circle a door sweeps through.
-// True when a box overlaps the quarter circle a hinged door sweeps through.
-function inQuarter(it, g) {
-  const qx0 = Math.min(g.hx, g.fx, g.ox), qx1 = Math.max(g.hx, g.fx, g.ox);
+// True when a piece overlaps the quarter circle a hinged door sweeps through.
+function inQuarter(item, g) {
+  const it = footprint(item), qx0 = Math.min(g.hx, g.fx, g.ox), qx1 = Math.max(g.hx, g.fx, g.ox);
   const qy0 = Math.min(g.hy, g.fy, g.oy), qy1 = Math.max(g.hy, g.fy, g.oy);
   const x0 = Math.max(it.x, qx0), x1 = Math.min(it.x + it.w, qx1);
   const y0 = Math.max(it.y, qy0), y1 = Math.min(it.y + it.d, qy1);
@@ -392,7 +407,7 @@ function drawList() {
     `<li data-id="${it.id}" class="${it.id === selId ? "sel" : ""}"><span class="sw" style="background:${esc(it.color)}"></span>${esc(it.name)}<small>${n(it.w)}×${n(it.d)}×${n(it.h)}</small></li>`).join("");
 }
 function num(label, key, v, attrs = "") {
-  return `<label>${label}<input type="number" step="0.5" data-k="${key}" value="${n(v)}" ${attrs}></label>`;
+  return `<label>${label}<input type="number"${/step=/.test(attrs) ? "" : ' step="0.5"'} data-k="${key}" value="${n(v)}" ${attrs}></label>`;
 }
 function buildSelForm() {
   const it = sel(), el = $("#selCard");
@@ -407,6 +422,7 @@ function buildSelForm() {
       <label>Headboard end<select data-k="headSide">${Object.keys(WALLS).map(w => `<option value="${w}"${w === it.headSide ? " selected" : ""}>${WALLS[w]}</option>`).join("")}</select></label></div>
     <div class="row two"><label>Front faces (3D view)<select data-k="face"><option value="auto">Away from the nearest wall</option>${Object.keys(WALLS).map(w => `<option value="${w}"${w === it.face ? " selected" : ""}>${WALLS[w]}</option>`).join("")}</select></label>
       <label class="check" style="margin:0;align-self:end"><input type="checkbox" data-k="solid"${it.solid ? " checked" : ""}>Solid (untick for rugs)</label></div>
+    ${canTurn(it) ? `<div class="row two">${num("Turn (degrees clockwise)", "turn", it.turn || 0, 'step="5"')}</div>` : ""}
     <div class="btns"><button data-act="rot">Rotate 90°</button><button data-act="dup">Duplicate</button><button data-act="del">Delete</button></div>
     <p class="hint">Headboard height 0 means no headboard. Its thickness is part of the depth.</p>`;
 }
@@ -502,7 +518,7 @@ const SIDEBAR = `<div class="card" id="selCard"></div>
 </details>
 <details class="card" data-section="keys" open>
   <summary>Keys and rules</summary>
-  <p class="hint" id="keysHint" style="margin:0">Arrow keys nudge 1″ (Shift = 6″), R rotates, Delete removes, Esc deselects. Solid pieces stop at walls and at each other. A red dashed outline means a piece blocks a door swing, a room door's or a wardrobe's, or overlaps something.</p>
+  <p class="hint" id="keysHint" style="margin:0">Arrow keys nudge 1″ (Shift = 6″), R rotates, Shift+R turns 15° (bean bags, plants, lamps and rugs), Delete removes, Esc deselects. Solid pieces stop at walls and at each other. A red dashed outline means a piece blocks a door swing, a room door's or a wardrobe's, or overlaps something.</p>
 </details>`;
 // Which sidebar sections this browser has opened or closed, by data-section name.
 const SECTIONS_KEY = "bedroom-planner-sections-v1";
@@ -579,6 +595,7 @@ function initPlanner() {
     const step = e.shiftKey ? 6 : 1;
     const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
     if (moves[e.key]) { const [dx, dy] = nudge(...moves[e.key]); moveTo(it, it.x + dx, it.y + dy); e.preventDefault(); buildSelForm(); draw(); }
+    else if (e.key === "R" && canTurn(it)) { it.turn = (turnOf(it) + 15) % 360; buildSelForm(); draw(); }
     else if (e.key === "r" || e.key === "R") act("rot");
     else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); act("del"); }
     else if (e.key === "Escape") select(null);

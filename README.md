@@ -6,7 +6,9 @@ A planner for Femi's San Francisco bedroom, built from his own measurements. Inc
 - **Layout links:** https://bedroom.davidteju.dev/window/, `/corner/` and `/centred/` each open
   one layout and have their own link preview. The link icon beside each ready-made layout in the sidebar copies them.
 - **3D view** (`site/index.html`): a three.js scene with modelled furniture. Drag a piece to move
-  it, Shift-drag to raise or lower it, R rotates, arrow keys nudge, click a door to open it. The
+  it, Shift-drag to raise or lower it, R rotates, arrow keys nudge, click a door to open it. Bean
+  bags, plants, lamps and rugs can sit at any angle: Shift+R turns one 15°, or type the angle in the
+  Selected panel; the rules then use the wall-aligned box that holds it. The
   **View** picker switches between the 3D, top, wall and standing-inside views, and **Show**
   turns on the grid, door swings and names. **Simulate lights**
   turns off daylight and the ceiling fixture and lights each lamp and sconce. Its bulb control sets

@@ -1088,6 +1088,7 @@ function sync() {
       itemsG.add(b.group);
     }
     b.group.position.set(it.x + it.w / 2, it.z, it.y + it.d / 2);
+    b.group.rotation.y = FACE_TURN[face] - turnOf(it) * Math.PI / 180;
     b.seg = hungOn(it, face);
     seen.add(it.id);
   }
@@ -1339,7 +1340,7 @@ addEventListener("beforeprint", () => { if (!printShot.src) takePrintShot(); });
 addEventListener("afterprint", () => printShot.removeAttribute("src"));
 setViewer();
 initPlanner();
-document.getElementById("keysHint").textContent = "Arrow keys nudge 1″ the way they point on screen (Shift = 6″), R rotates, Delete removes, Esc deselects. Solid pieces stop at walls and at each other. A red outline means a piece blocks a door swing, a room door's or a wardrobe's, or overlaps something.";
+document.getElementById("keysHint").textContent = "Arrow keys nudge 1″ the way they point on screen (Shift = 6″), R rotates, Shift+R turns 15° (bean bags, plants, lamps and rugs), Delete removes, Esc deselects. Solid pieces stop at walls and at each other. A red outline means a piece blocks a door swing, a room door's or a wardrobe's, or overlaps something.";
 drawBar();
 resize();
 fly("3d", true);

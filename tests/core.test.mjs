@@ -416,3 +416,49 @@ test("the 3D view prints a still picture, since the canvas keeps its screen size
   assert.match(print, /#printShot \{ display: block;/);
   assert.match(html, /#printShot \{ display: none; \}/);
 });
+
+test("round and soft pieces and rugs can turn to any angle; hard furniture cannot", () => {
+  const run = loadCore();
+  const turnable = JSON.parse(run(`JSON.stringify(Object.keys(KINDS).filter(k => canTurn({ kind: k })))`));
+  assert.deepEqual(turnable.sort(), ["beanbag", "lamp", "plant", "rug"]);
+});
+
+test("a turned piece takes up the wall-aligned box that holds it, centred where it was", () => {
+  const run = loadCore();
+  const fp = it => JSON.parse(run(`JSON.stringify(footprint(${JSON.stringify(it)}))`));
+  const round = v => Math.round(v * 100) / 100;
+  const box = f => [f.x, f.y, f.w, f.d].map(round);
+  const bag = { name: "Bean bag", kind: "beanbag", x: 40, y: 50, w: 36, d: 34, h: 26, z: 0 };
+  assert.deepEqual(box(fp(bag)), [40, 50, 36, 34], "no turn, no change");
+  // an oval 36 x 34 turned 45 degrees spans sqrt((18^2 + 17^2) / 2) * 2 each way
+  const half = Math.sqrt((18 ** 2 + 17 ** 2) / 2);
+  assert.deepEqual(box(fp({ ...bag, turn: 45 })), [58 - half, 67 - half, 2 * half, 2 * half].map(round));
+  // a rectangle's corners stick out: 96 x 60 at 30 degrees
+  const rug = { name: "Rug", kind: "rug", x: 0, y: 0, w: 96, d: 60, h: 0.5, z: 0, turn: 30 };
+  const rw = 96 * Math.cos(Math.PI / 6) + 60 * 0.5, rd = 96 * 0.5 + 60 * Math.cos(Math.PI / 6);
+  assert.deepEqual(box(fp(rug)), [48 - rw / 2, 30 - rd / 2, rw, rd].map(round));
+  assert.deepEqual(box(fp({ name: "Dresser", kind: "dresser", x: 0, y: 0, w: 36, d: 18, h: 34, z: 0, turn: 30 })), [0, 0, 36, 18], "a dresser ignores turn");
+});
+
+test("the rules use a turned piece's real footprint", () => {
+  const run = loadCore();
+  const out = JSON.parse(run(`(() => {
+    const rug = { id: "r", name: "Rug", kind: "rug", x: 0, y: 60, w: 96, d: 60, h: 0.5, z: 0, solid: false, headH: 0, headT: 3, headSide: "S" };
+    const plant = { id: "c", name: "Plant", kind: "plant", x: 0, y: 130, w: 30, d: 10, h: 40, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" };
+    const box = { id: "b", name: "Box", kind: "other", x: 26, y: 120, w: 20, d: 20, h: 20, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" };
+    state.items = [rug, plant, box];
+    const flat = { rugOut: outside(rug), plantHits: isBad(plant) };
+    rug.turn = 40; plant.turn = 90;
+    return JSON.stringify({ flat, turned: { rugOut: outside(rug), plantHits: isBad(plant), plantW: clearances(plant).W } });
+  })()`));
+  // turned 90, the 30 x 10 plant is 10 wide and 30 deep about the same centre, clear of the box
+  assert.deepEqual(out, { flat: { rugOut: false, plantHits: true }, turned: { rugOut: true, plantHits: false, plantW: 10 } });
+});
+
+test("the Selected panel offers a turn angle only for pieces that can turn, and both views draw it", () => {
+  const core = read("core.js");
+  assert.match(core, /canTurn\(it\) \? `<div class="row two">\$\{num\("Turn \(degrees clockwise\)", "turn", it\.turn \|\| 0/);
+  assert.match(core, /Shift\+R turns 15°/);
+  assert.match(read("index.html"), /b\.group\.rotation\.y = FACE_TURN\[face\] - turnOf\(it\) \* Math\.PI \/ 180/);
+  assert.match(read("plan.html"), /rotate\(\$\{turnOf\(it\)\} \$\{cx\} \$\{cy\}\)/);
+});
