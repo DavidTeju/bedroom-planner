@@ -395,3 +395,24 @@ test("the bean bag is one sagging fabric sack, not stacked spheres", () => {
   assert.doesNotMatch(model, /SphereGeometry/);
   assert.match(html, /function sackGeometry\(/);
 });
+
+test("Print waits for the page to get ready before opening the browser's print dialog", () => {
+  const run = loadCore();
+  assert.equal(run("typeof onPrint"), "function", "pages can hook printing");
+  assert.match(read("core.js"), /\$\("#print"\)\.addEventListener\("click", async \(\) => \{ await onPrint\(\); window\.print\(\); \}\)/);
+});
+
+test("the 3D view prints a still picture, since the canvas keeps its screen size and is not redrawn for paper", () => {
+  const html = read("index.html");
+  assert.match(html, /onPrint = takePrintShot/);
+  const shot = html.match(/async function takePrintShot\(\) \{[\s\S]*?\n\}/)[0];
+  assert.match(shot, /renderer\.render\(scene, camera\)/, "draws a fresh frame first");
+  assert.match(shot, /toDataURL\(/);
+  assert.match(shot, /\.decode\(\)/, "waits for the picture before printing");
+  assert.match(html, /addEventListener\("beforeprint"/, "Ctrl/Cmd+P gets the picture too");
+  assert.match(html, /addEventListener\("afterprint"/);
+  const print = html.match(/@media print \{[^\n]*\}/)[0];
+  assert.match(print, /#stage canvas, #labels \{ display: none !important; \}/);
+  assert.match(print, /#printShot \{ display: block;/);
+  assert.match(html, /#printShot \{ display: none; \}/);
+});

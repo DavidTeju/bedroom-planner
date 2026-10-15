@@ -73,7 +73,8 @@
   .tag.compass { background: none; border: none; color: var(--muted); font-size: 13px; text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
   #fail[hidden] { display: none; }
   #fail { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); }
-  @media print { aside, header p, .bar, #help { display: none; } main { grid-template-columns: 1fr; } }
+  #printShot { display: none; }
+  @media print { aside, header p, .bar, #help { display: none; } main { grid-template-columns: 1fr; } #stage { height: auto; } #stage canvas, #labels { display: none !important; } #printShot { display: block; width: 100%; height: auto; } }
   /* Phones get a viewer: the layouts as tabs and no editing panel. */
   #tabs, #about { display: none; }
   body.viewer header > p, body.viewer aside { display: none; }
@@ -1324,6 +1325,18 @@ function frame(now) {
 }
 
 onDraw = () => { sync(); drawTabs(); };
+// Printing lays the page out again at paper width, but the canvas keeps its on-screen pixel size
+// and the render loop does not redraw it for the printout. So print a still picture of the view.
+const printShot = Object.assign(document.createElement("img"), { id: "printShot", alt: "3D view of the room" });
+stage.append(printShot);
+async function takePrintShot() {
+  renderer.render(scene, camera);
+  printShot.src = canvas.toDataURL("image/png");
+  await printShot.decode();
+}
+onPrint = takePrintShot;
+addEventListener("beforeprint", () => { if (!printShot.src) takePrintShot(); }); // Ctrl/Cmd+P skips the button
+addEventListener("afterprint", () => printShot.removeAttribute("src"));
 setViewer();
 initPlanner();
 document.getElementById("keysHint").textContent = "Arrow keys nudge 1″ the way they point on screen (Shift = 6″), R rotates, Delete removes, Esc deselects. Solid pieces stop at walls and at each other. A red outline means a piece blocks a door swing, a room door's or a wardrobe's, or overlaps something.";

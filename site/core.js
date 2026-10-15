@@ -458,8 +458,10 @@ function openPlan(p) {
   state.items = normalize({ room: { ...state.room }, openings: [], items: structuredClone(p.items) }).items;
   state.planId = p.id; selId = null; buildSelForm(); draw();
 }
-// Each page sets these: onDraw repaints its view, nudge turns an arrow key into a move across the floor.
+// Each page sets these: onDraw repaints its view, nudge turns an arrow key into a move across the floor,
+// onPrint gets the page ready before the print dialog opens.
 let onDraw = () => {};
+let onPrint = async () => {};
 let nudge = (dx, dy) => [dx, dy];
 function refresh() { onDraw(); drawList(); drawPlans(); }
 function draw() { refresh(); save(); }
@@ -641,7 +643,7 @@ function initPlanner() {
     if (!p || !isSaved(p)) return;
     p.items = structuredClone(state.items); savePlans(); draw();
   });
-  $("#print").addEventListener("click", () => window.print());
+  $("#print").addEventListener("click", async () => { await onPrint(); window.print(); });
   // Two clicks instead of a browser confirm box, which some browsers suppress on local files.
   const resetBtn = $("#reset");
   let resetTimer = null;
