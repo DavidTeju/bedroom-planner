@@ -37,9 +37,11 @@ const KINDS = { bed: "Bed", bench: "Bench", ottoman: "Upholstered storage bench"
 // Femi's palette, Clay and indigo. The walls are rented cream plaster and can't be painted, so the
 // colour comes from what he owns (sage wardrobe and comforter, wood, cane, black-brown) plus a
 // terracotta throw and bean bag, an indigo pillow echoing his Adire, jute rugs and olive-painted chests.
-const THEME = { name: "Clay and indigo", walls: "#eadfcc", floor: "#9a5530", sheets: "#ddd3c1", throw: "#b5653f", accent: "#2f4a7a" };
+// The wardrobe is painted Behr Laurel Garland; chests go one step darker on the same Behr strip.
+const THEME = { name: "Clay and indigo", walls: "#eadfcc", floor: "#9a5530", sheets: "#ddd3c1", throw: "#b5653f", accent: "#2f4a7a",
+  wardrobePaint: "Behr Laurel Garland N390-6", chestPaint: "Behr Cypress Vine N390-7" };
 // Starting points that ship with the page.
-const KIND_COLOR = { bed: "#a9ae95", bench: "#a9825a", ottoman: "#4a4d55", dresser: "#4b5638", wardrobe: "#6b8462", rack: "#9aa3ad", shoe: "#2a2421",
+const KIND_COLOR = { bed: "#a9ae95", bench: "#a9825a", ottoman: "#4a4d55", dresser: "#565d49", wardrobe: "#68705c", rack: "#9aa3ad", shoe: "#2a2421",
   nightstand: "#8b4a24", shelf: "#9c7b55", ladder: "#b08a62", beanbag: "#b5653f", board: "#2f5d7c", boots: "#2b2d33", chair: "#7fae8f", rug: "#c8b48a", mirror: "#9fc5d8", lamp: "#e3c66b", sconce: "#e3c66b", plant: "#7fae8f",
   art: "#efe4cc", textile: "#3f5f9e", pegs: "#c9b592", other: "#bdbdbd" };
 // [name, kind, x, y, width, depth, height, off floor, headboard side]

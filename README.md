@@ -22,7 +22,8 @@ A planner for Femi's San Francisco bedroom, built from his own measurements. Inc
 - **Palette, Clay and indigo** (`THEME` in `core.js`): the walls stay cream, because the room is
   rented and Femi can't paint them. Colour comes from what he owns plus a terracotta throw over the
   foot of the bed, an indigo pillow that echoes his Adire hanging, jute rugs and chests painted deep
-  olive. His sheets and sleeping pillows are linen; the shams match the sage comforter.
+  olive. The wardrobe is Behr Laurel Garland (N390-6, about #68705C); chests take Cypress Vine (N390-7),
+  one step darker on the same strip. His sheets and sleeping pillows are linen; the shams match the sage comforter.
 - **Gear:** every ready-made layout hangs Femi's snowboard upright on a wall rack, bindings on,
   with his boots on a tray under it. A board's model lies flat instead when it is wider than tall.
   The furniture list also offers a leaning ladder shelf, which the window layout uses on the

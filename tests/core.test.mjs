@@ -133,7 +133,7 @@ test("every piece in every ready-made layout resolves to a compass facing", () =
 test("every ready-made layout has Femi's green VILHATTEN wardrobe with his black LACK shoe shelf beside it", () => {
   const run = loadCore();
   const pick = kind => JSON.parse(run(`JSON.stringify(BUILTIN.map(p => p.items.filter(i => i.kind === "${kind}").map(i => [i.name, i.x, i.y, i.w, i.d, i.h, i.color])))`));
-  const wardrobe = [["VILHATTEN wardrobe, green", 0, 0, 38.625, 22.5, 74.75, "#6b8462"]];
+  const wardrobe = [["VILHATTEN wardrobe, green", 0, 0, 38.625, 22.5, 74.75, "#68705c"]];
   const shelf = [["LACK shoe shelf, black-brown", 38.625, 0, 11.75, 11, 74.75, "#2a2421"]];
   assert.deepEqual(pick("wardrobe"), [wardrobe, wardrobe, wardrobe]);
   assert.deepEqual(pick("shoe"), [shelf, shelf, shelf]);
@@ -493,8 +493,9 @@ test("the 3D view models the real pieces: painted wardrobe, LACK shelf, upholste
 test("the room wears the Clay and indigo palette: cream walls stay, accents go on textiles and furniture", () => {
   const run = loadCore();
   assert.deepEqual(JSON.parse(run("JSON.stringify(THEME)")),
-    { name: "Clay and indigo", walls: "#eadfcc", floor: "#9a5530", sheets: "#ddd3c1", throw: "#b5653f", accent: "#2f4a7a" });
-  assert.deepEqual(JSON.parse(run(`JSON.stringify([KIND_COLOR.rug, KIND_COLOR.dresser, KIND_COLOR.beanbag])`)), ["#c8b48a", "#4b5638", "#b5653f"]);
+    { name: "Clay and indigo", walls: "#eadfcc", floor: "#9a5530", sheets: "#ddd3c1", throw: "#b5653f", accent: "#2f4a7a",
+      wardrobePaint: "Behr Laurel Garland N390-6", chestPaint: "Behr Cypress Vine N390-7" });
+  assert.deepEqual(JSON.parse(run(`JSON.stringify([KIND_COLOR.rug, KIND_COLOR.dresser, KIND_COLOR.beanbag, KIND_COLOR.wardrobe])`)), ["#c8b48a", "#565d49", "#b5653f", "#68705c"]);
   const out = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => ({
     rugs: p.items.filter(i => i.kind === "rug").every(i => /jute/i.test(i.name) && i.color === KIND_COLOR.rug),
     dressers: p.items.filter(i => i.kind === "dresser").every(i => /painted olive/.test(i.name) && i.color === KIND_COLOR.dresser)
