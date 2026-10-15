@@ -434,7 +434,7 @@ function drawPlans() {
     const armedLoad = armedKey === "load:" + p.id, armedDel = armedKey === "del:" + p.id;
     const note = armedLoad ? "click again, unsaved changes go" : armedDel ? "click again to delete"
       : p === cur ? (dirty ? "open, edited" : "open") : isSaved(p) ? p.items.length + " pieces" : p.note;
-    return `<li data-plan="${p.id}" class="${p === cur ? "cur" : ""}${armedLoad || armedDel ? " armed" : ""}">${esc(p.name)}<small>${note}</small>${isSaved(p) ? `<button class="x" data-del="${p.id}" title="Delete this plan">✕</button>` : ""}${linkOf(p) ? `<button class="link" data-copy="${linkOf(p)}" title="Copy a link that opens this layout">Copy link</button>` : ""}</li>`;
+    return `<li data-plan="${p.id}" class="${p === cur ? "cur" : ""}${armedLoad || armedDel ? " armed" : ""}"><span class="pl"><span>${esc(p.name)}</span><small>${note}</small></span>${isSaved(p) ? `<button class="x" data-del="${p.id}" title="Delete this plan">✕</button>` : ""}${linkOf(p) ? `<button class="link" data-copy="${linkOf(p)}" title="Copy a link that opens this layout" aria-label="Copy link"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" class="i-link"><path d="M6.5 9.5l3-3M7 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 0 1 4.5 9l1-1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" class="i-done"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>` : ""}</li>`;
   };
   $("#plansBox").innerHTML = `<div class="sub">Ready-made</div><ul class="plans">${BUILTIN.map(row).join("")}</ul>
     <div class="sub">Yours</div><ul class="plans">${plans.length ? plans.map(row).join("") : `<li style="cursor:default;color:var(--muted)">None saved yet</li>`}</ul>`;
@@ -602,10 +602,10 @@ function initPlanner() {
     e.target.value = "";
   });
   $("#plansBox").addEventListener("click", e => {
-    const copy = e.target.dataset.copy;
-    if (copy) {
-      const url = location.origin + copy, b = e.target;
-      navigator.clipboard.writeText(url).then(() => { b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy link"; }, 1500); },
+    const b = e.target.closest("[data-copy]");
+    if (b) {
+      const url = location.origin + b.dataset.copy;
+      navigator.clipboard.writeText(url).then(() => { b.classList.add("done"); b.title = "Copied"; setTimeout(() => { b.classList.remove("done"); b.title = "Copy a link that opens this layout"; }, 1500); },
         () => window.prompt("Copy this link", url));
       return;
     }

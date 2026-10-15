@@ -329,3 +329,12 @@ test("the simulate-lights switch keeps its bulb controls beside it without stret
   assert.match(group, /id="bulbCtl"/);
   assert.deepEqual([...group.matchAll(/data-bulb-mode="(\w+)"/g)].map(m => m[1]), ["white", "colour"]);
 });
+
+test("each plan row stacks its note under the name and ends in a same-size copy-link icon", () => {
+  const core = read("core.js"), css = read("core.css");
+  assert.match(core, /<span class="pl"><span>\$\{esc\(p\.name\)\}<\/span><small>\$\{note\}<\/small><\/span>/);
+  assert.match(core, /<button class="link" data-copy="[^"]*" title="Copy a link that opens this layout" aria-label="Copy link"><svg/);
+  // a click lands on the icon inside the button, so the handler must look up from the target
+  assert.match(core, /e\.target\.closest\("\[data-copy\]"\)/);
+  assert.match(css, /ul\.plans \.link \{[^}]*width: 28px/);
+});

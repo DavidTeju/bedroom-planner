@@ -33,9 +33,14 @@ ul.plans li { display: flex; gap: 8px; align-items: center; padding: 5px 8px; bo
 ul.plans li:hover { border-color: var(--line); }
 ul.plans li.cur { border-color: var(--accent); }
 ul.plans li.armed { border-color: var(--warn); color: var(--warn); }
-ul.plans small { color: var(--muted); margin-left: auto; white-space: nowrap; }
+ul.plans .pl { display: grid; flex: 1; min-width: 0; }
+ul.plans small { color: var(--muted); font-size: 12px; }
 ul.plans .x { border: none; background: none; padding: 0 4px; color: var(--muted); }
-ul.plans .link { padding: 1px 6px; font-size: 11px; white-space: nowrap; }
+ul.plans .link { flex: none; width: 28px; height: 28px; padding: 0; display: grid; place-items: center; color: var(--muted); background: none; }
+ul.plans .link:hover { color: var(--accent); }
+ul.plans .link .i-done, ul.plans .link.done .i-link { display: none; }
+ul.plans .link.done .i-done { display: block; }
+ul.plans .link.done { color: #1a7f37; border-color: #1a7f37; }
 .sub { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 8px 0 4px; }
 ul#list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 ul#list li { display: flex; gap: 8px; align-items: center; padding: 5px 8px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
