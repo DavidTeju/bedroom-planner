@@ -373,14 +373,32 @@ const pictureMat = (name, seed, aspect) => cached(`pic${name}/${seed}/${aspect.t
   const w = aspect >= 1 ? 512 : Math.round(512 * aspect), h = aspect >= 1 ? Math.round(512 / aspect) : 512;
   return new THREE.MeshStandardMaterial({ map: canvasTex(w, h, (g, cw, ch) => PICTURES[pictureFor(name)](g, cw, ch, rng(seed))), roughness: 0.6 });
 });
-// One of Femi's prints, cropped to fill a pane of the given shape the way a print shop would.
-const photoLoader = new THREE.TextureLoader();
-const photoMat = (key, aspect) => cached(`photo${key}/${aspect.toFixed(2)}`, () => {
-  const p = PRINTS[key], t = photoLoader.load(p.file), img = p.w / p.h;
+// One of Femi's prints, cropped to fill a w by h pane the way a print shop would, then pixelated and
+// posterized so it sits in the flat-shaded room like everything else: every frame gets the same
+// pixel size, and each colour channel keeps only a few levels.
+const PRINT_PIXELS_PER_INCH = 4;
+const PRINT_LEVELS = 18;
+const photoMat = (key, w, h) => cached(`photo${key}/${w.toFixed(1)}x${h.toFixed(1)}`, () => {
+  const cv = document.createElement("canvas"), g = cv.getContext("2d", { willReadFrequently: true });
+  cv.width = Math.max(4, Math.round(w * PRINT_PIXELS_PER_INCH));
+  cv.height = Math.max(4, Math.round(h * PRINT_PIXELS_PER_INCH));
+  g.fillStyle = "#8a8f94"; g.fillRect(0, 0, cv.width, cv.height); // shown until the photo arrives
+  const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
-  if (img > aspect) { t.repeat.set(aspect / img, 1); t.offset.set((1 - aspect / img) / 2, 0); }
-  else { t.repeat.set(1, img / aspect); t.offset.set(0, (1 - img / aspect) / 2); }
+  t.magFilter = t.minFilter = THREE.NearestFilter;
+  t.generateMipmaps = false;
+  const img = new Image();
+  img.onload = () => {
+    const aspect = w / h, sw = Math.min(img.width, img.height * aspect), sh = sw / aspect;
+    g.imageSmoothingQuality = "high";
+    g.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, cv.width, cv.height);
+    const px = g.getImageData(0, 0, cv.width, cv.height), d = px.data, step = 255 / (PRINT_LEVELS - 1);
+    for (let i = 0; i < d.length; i += 4) for (let c = 0; c < 3; c++) d[i + c] = Math.round(d[i + c] / step) * step;
+    g.putImageData(px, 0, 0);
+    t.needsUpdate = true;
+  };
+  img.onerror = () => console.error("Could not load the print", PRINTS[key].file);
+  img.src = PRINTS[key].file;
   return new THREE.MeshStandardMaterial({ map: t, roughness: 0.45 });
 });
 // Indigo resist-dyed cloth: a grid of cells, each with its own motif.
@@ -1018,7 +1036,7 @@ const MODELS = {
     bxm(g, a - 1.6, h - 1.6, 0.06, 0, 0.8, dp / 2 + 0.03, M("#f6f3ec", 0.9));
     const pw = a - 1.6 - 2 * mat, ph = h - 1.6 - 2 * mat, photos = (it.photos || []).filter(k => PRINTS[k]);
     if (!photos.length) { bxm(g, pw, ph, 0.06, 0, 0.8 + mat, dp / 2 + 0.08, pictureMat(name, it.id + name, pw / ph)); return; }
-    for (const p of photoPanes(photos, pw, ph)) bxm(g, p.w, p.h, 0.06, p.x, 0.8 + mat + p.y, dp / 2 + 0.08, photoMat(p.key, p.w / p.h));
+    for (const p of photoPanes(photos, pw, ph)) bxm(g, p.w, p.h, 0.06, p.x, 0.8 + mat + p.y, dp / 2 + 0.08, photoMat(p.key, p.w, p.h));
   },
   textile(g, { a, dp, h, c }) {
     cyl(g, 0.5, 0.5, a + 3, 0, h - 0.5, 0, wood("#7a5a3c"), "x");

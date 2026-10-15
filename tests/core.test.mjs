@@ -640,3 +640,31 @@ test("both views show the photo in a frame, and the Selected panel can swap it",
   assert.match(plan, /<image [^>]*href="\$\{PRINTS\[/, "the wall views draw the photo");
   assert.match(core, /data-k="photo"/, "a photo picker for art pieces");
 });
+
+test("in 3D the photos are pixelated and posterized to match the flat-shaded room", () => {
+  const html = read("index.html");
+  const mat = html.match(/^const photoMat = [\s\S]*?^\}\);$/m);
+  assert.ok(mat, "photoMat is defined");
+  assert.match(html, /^const PRINT_PIXELS_PER_INCH = \d+(\.\d+)?;/m, "one pixel size for every frame");
+  assert.match(mat[0], /NearestFilter/, "blocky pixels, not blurred ones");
+  assert.match(mat[0], /PRINT_LEVELS/, "colours reduced to a few levels per channel");
+  assert.match(html.match(/^\s{2}art\(g, \{[\s\S]*?^\s{2}\},$/m)[0], /photoMat\(p\.key, p\.w, p\.h\)/, "each pane is pixelated at its real size");
+});
+
+test("every inline script on both pages parses", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const os = await import("node:os"), path = await import("node:path");
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "planner-syntax-"));
+  try {
+    for (const page of ["index.html", "plan.html"]) {
+      const scripts = [...read(page).matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/g)].filter(([, attrs]) => !/importmap|json/.test(attrs));
+      assert.ok(scripts.length, page + " has inline scripts");
+      scripts.forEach(([, attrs, body], i) => {
+        const file = path.join(tmp, `${page}-${i}.${/module/.test(attrs) ? "mjs" : "cjs"}`);
+        fs.writeFileSync(file, body);
+        try { execFileSync(process.execPath, ["--check", file], { stdio: "pipe" }); }
+        catch (e) { assert.fail(`${page} script ${i} does not parse:\n${String(e.stderr).split("\n").slice(0, 6).join("\n")}`); }
+      });
+    }
+  } finally { fs.rmSync(tmp, { recursive: true }); }
+});

@@ -34,7 +34,9 @@ A planner for Femi's San Francisco bedroom, built from his own measurements. Inc
 - **Femi's photographs** hang in every frame except the topo map: 19 of his own shots from 2024 to
   2026, picked from his Photos library (`PRINTS` in `core.js`, files in `site/prints/`). Each is a
   1600 px copy with no location or camera data, cropped to fill its frame the way a print shop
-  would. A frame can hold one photo or a grid (`photos` on the item). The Selected panel's **Photo**
+  would. In 3D the photos are lightly pixelated (4 pixels per inch, the same in every frame) and
+  posterized to 18 levels per channel, to sit in the flat-shaded room; the 2D wall views show them
+  plain. A frame can hold one photo or a grid (`photos` on the item). The Selected panel's **Photo**
   menu swaps which one a frame shows.
 - **Gear:** every ready-made layout hangs Femi's snowboard upright on a wall rack, bindings on,
   with his boots on a tray under it. A board's model lies flat instead when it is wider than tall.
