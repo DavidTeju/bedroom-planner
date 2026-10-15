@@ -229,6 +229,37 @@ function parts(it) {
   }
   return out;
 }
+// How far below the bed's top the 3D throw hangs: down each long side, and over the foot end.
+const THROW_DROP = { side: 16, foot: 5 };
+// Clear inches beside the foot of a bed for the throw to hang into: on the model's left and right
+// (seen from the foot) along the 30 in nearest the foot, and past the foot end. Walls, the in-push
+// and solid pieces count; a piece lower than the throw's hem on that side does not. `shelf` is the
+// top of the tallest such low piece within a foot of the foot end, which the throw lies on.
+function throwRoom(bed) {
+  const r = state.room, foot = frontDir(bed), right = { S: "E", N: "W", E: "N", W: "S" }[foot], top = bed.z + bed.h;
+  const band = { ...bed };
+  if (foot === "N") band.d = Math.min(30, bed.d);
+  if (foot === "S") { band.d = Math.min(30, bed.d); band.y = bed.y + bed.d - band.d; }
+  if (foot === "W") band.w = Math.min(30, bed.w);
+  if (foot === "E") { band.w = Math.min(30, bed.w); band.x = bed.x + bed.w - band.w; }
+  let shelf = 0;
+  const gap = (s, dir, hem) => {
+    const across = dir === "E" || dir === "W"
+      ? o => o.y < s.y + s.d - 0.01 && s.y < o.y + o.d - 0.01
+      : o => o.x < s.x + s.w - 0.01 && s.x < o.x + o.w - 0.01;
+    const away = o => ({ E: o.x - (s.x + s.w), W: s.x - (o.x + o.w), N: s.y - (o.y + o.d), S: o.y - (s.y + s.d) })[dir];
+    let best = { E: r.W - (s.x + s.w), W: s.x, N: s.y, S: r.L - (s.y + s.d) }[dir];
+    const b = bumpRect(), others = b.w > 0 && b.d > 0 ? [b] : [];
+    for (const o of state.items) if (o !== bed && o.solid && o.z < top) {
+      if (topOf(o) > hem) others.push(footprint(o));
+      else if (dir === foot && across(footprint(o)) && away(footprint(o)) > -0.01 && away(footprint(o)) < 12) shelf = Math.max(shelf, topOf(o));
+    }
+    for (const o of others) if (across(o) && away(o) > -0.01) best = Math.min(best, away(o));
+    return Math.max(0, Math.round(best * 100) / 100);
+  };
+  const sides = { left: gap(band, OPPOSITE[right], top - THROW_DROP.side), right: gap(band, right, top - THROW_DROP.side), foot: gap(bed, foot, top - THROW_DROP.foot) };
+  return { ...sides, shelf };
+}
 // Wall segment an opening sits on, plus the unit normal pointing into the room.
 function opSeg(o) {
   const { W, L, bx, by } = state.room, mid = o.off + o.w / 2;

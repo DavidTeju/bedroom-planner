@@ -511,3 +511,101 @@ test("the 3D bed wears linen sheets and pillows, sage shams, an indigo pillow an
   assert.match(html, /WALL = M\(THEME\.walls/);
   assert.match(html, /function chest\([^)]*\)[\s\S]*?\/painted\//, "painted chests are matte, not wood-grained");
 });
+
+// Pulls one top-level function out of the 3D page and runs it on its own.
+function pageFn(name) {
+  const src = read("index.html").match(new RegExp(`^function ${name}\\([\\s\\S]*?^\\}$`, "m"));
+  assert.ok(src, name + " is a top-level function in index.html");
+  return vm.runInNewContext(`(${src[0]})`, { Math });
+}
+
+test("a pillow is stuffed: thin at the seam, full in the middle, ears at the corners, a dent where a head goes", () => {
+  const pillowPoint = pageFn("pillowPoint"), o = { w: 26, len: 20, t: 6, seed: 1 };
+  const [, top] = pillowPoint(0, 0, 1, o), [, bottom] = pillowPoint(0, 0, -1, o);
+  assert.ok(top - bottom > 5 && top - bottom < 6.5, "about the stuffed thickness in the middle");
+  for (const [u, v] of [[1, 0], [-1, 0.3], [0.2, 1], [0.5, -1]]) {
+    const a = pillowPoint(u, v, 1, o), b = pillowPoint(u, v, -1, o);
+    assert.ok(Math.abs(a[1] - b[1]) < 1e-9 && a[0] === b[0] && a[2] === b[2], `top and bottom meet at the seam (${u}, ${v})`);
+  }
+  assert.ok(pillowPoint(1, 0, 1, o)[0] < pillowPoint(1, 1, 1, o)[0] - 0.4, "the stuffing pulls the middle of each edge in, leaving ears");
+  assert.ok(pillowPoint(0, 1, 1, o)[2] < pillowPoint(1, 1, 1, o)[2] - 0.3);
+  const dented = pillowPoint(0, 0.1, 1, { ...o, dent: 1 })[1], plain = pillowPoint(0, 0.1, 1, o)[1];
+  assert.ok(dented < plain - 0.8, "a slept-on pillow sinks in the middle");
+  assert.ok(pillowPoint(0, 0, -1, o)[1] > -o.t / 2, "the underside settles flatter than the top");
+});
+
+test("the throw lies on the bed, rolls over the edges and hangs outside the frame without passing through it", () => {
+  const drapePoint = pageFn("drapePoint"), bed = { x0: -31, x1: 31, z1: 40, top: 25, r: 2, floor: 0, seed: 3, folds: 1 };
+  assert.deepEqual(Array.from(drapePoint(0, 20, bed), v => +v.toFixed(6)), [0, 25, 20], "flat on top in the middle");
+  // signed distance to the bed: a box with its top edges and corners rounded to r, negative inside
+  const into = ([x, y, z]) => {
+    const qx = Math.max(bed.x0 + bed.r - x, x - (bed.x1 - bed.r)), qy = y - (bed.top - bed.r), qz = z - (bed.z1 - bed.r);
+    return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - bed.r;
+  };
+  for (let px = -50; px <= 50; px += 0.5) for (let pz = 10; pz <= 55; pz += 0.5) {
+    const p = drapePoint(px, pz, bed);
+    assert.ok(p[1] <= 25 + 1e-9 && p[1] >= 0, "never above the top or below the floor");
+    assert.ok(into(p) > -1e-6, `stays outside the bed at (${px}, ${pz}) -> (${p.join(", ")})`);
+  }
+  const hang = drapePoint(45, 20, bed);
+  assert.ok(hang[0] >= 31 && hang[1] < 25 - 10, "a long side hangs down past the rail");
+  const corner = drapePoint(45, 52, bed), sideOnly = drapePoint(45, 38, bed);
+  assert.ok(corner[1] < sideOnly[1], "the corner hangs lowest, as cloth does over a corner");
+  const a = drapePoint(40, 20, bed), b = drapePoint(40, 20.2, bed);
+  assert.ok(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < 1, "no tears: nearby cloth stays nearby");
+});
+
+test("the 3D bed builds its pillows and throw from shaped cloth, not boxes", () => {
+  const html = read("index.html");
+  const bed = html.match(/^\s{2}bed\(g, \{[\s\S]*?^\s{2}\},$/m)[0];
+  assert.match(bed, /pillow\(g,[\s\S]*pillow\(g,[\s\S]*pillow\(g,/, "sleeping pillows, shams and the accent pillow are pillows");
+  assert.match(bed, /throwBlanket\(g,/);
+  assert.doesNotMatch(bed, /THEME\.throw\)[^;]*;\s*bxm|cloth, 0\.4\)/, "no box slabs for the throw");
+  assert.match(html, /function throwBlanket\([\s\S]*?fringe/, "the throw ends in a fringe");
+  assert.match(html, /const knitMat/, "the throw is a chunky knit");
+});
+
+test("the throw only hangs where there is room: never into a wall, a lamp or anything else beside the foot of the bed", () => {
+  const run = loadCore();
+  const room = name => JSON.parse(run(`(() => {
+    state.items = structuredClone(BUILTIN.find(p => p.name === ${JSON.stringify(name)}).items);
+    return JSON.stringify(throwRoom(state.items.find(i => i.kind === "bed")));
+  })()`));
+  // corner: the bed faces N with its east side on the east wall, which is the model's left
+  assert.equal(room("Corner bed, maximum storage").left, 0);
+  // window: the bed faces W with its south side on the south wall, which is the model's right
+  const win = room("Bed facing the window");
+  assert.equal(win.right, 0);
+  assert.ok(win.foot > 6, "the bench at the foot sits below the throw's hem, so the foot is clear: " + win.foot);
+  assert.equal(win.shelf, 18, "and the throw rests on the bench's 18 in top");
+  assert.equal(room("Centred bed, both sides open").shelf, 18);
+  const centred = room("Centred bed, both sides open");
+  assert.ok(centred.left > 6 && centred.right > 6, "the centred bed has both sides open");
+  // a tall piece pushed against the foot end of one side takes that side's room away
+  const blocked = JSON.parse(run(`(() => {
+    const bed = state.items.find(i => i.kind === "bed");
+    state.items.push({ id: "probe", name: "probe", kind: "other", x: bed.x + bed.w + 2, y: bed.y + 4, w: 10, d: 10, h: 60, z: 0, solid: true, headH: 0 });
+    const out = throwRoom(bed);
+    state.items.pop();
+    return JSON.stringify(out);
+  })()`));
+  assert.equal(blocked[{ N: "left", S: "right" }[run(`frontDir(state.items.find(i => i.kind === "bed"))`)]], 2);
+});
+
+test("cloth past the foot of the bed rests on a bench there instead of passing through it, without tearing", () => {
+  const drapePoint = pageFn("drapePoint"), bed = { x0: -31, x1: 31, z1: 40, top: 25, r: 2, floor: 0, seed: 3, folds: 1, rest: 18 };
+  let prev = null;
+  for (let px = 20; px <= 50; px += 0.25) {
+    for (let pz = 30; pz <= 52; pz += 0.25) {
+      const p = drapePoint(px, pz, bed);
+      if (p[2] > bed.z1 + 0.01) assert.ok(p[1] >= 18 - 1e-6, `rests on the bench past the foot at (${px}, ${pz}) -> ${p[1]}`);
+    }
+  }
+  for (let t = 0; t <= 1; t += 0.002) { // walk round the corner: neighbouring cloth stays together
+    const p = drapePoint(31 - 2 + 18 * Math.cos(t * Math.PI / 2), 40 - 2 + 18 * Math.sin(t * Math.PI / 2), bed);
+    if (prev) assert.ok(Math.hypot(p[0] - prev[0], p[1] - prev[1], p[2] - prev[2]) < 0.5, `no tear at t=${t.toFixed(3)}`);
+    prev = p;
+  }
+  const side = drapePoint(48, 20, bed), free = drapePoint(48, 20, { ...bed, rest: undefined });
+  assert.deepEqual(Array.from(side), Array.from(free), "the long sides still hang free");
+});

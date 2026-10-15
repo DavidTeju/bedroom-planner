@@ -24,6 +24,13 @@ A planner for Femi's San Francisco bedroom, built from his own measurements. Inc
   foot of the bed, an indigo pillow that echoes his Adire hanging, jute rugs and chests painted deep
   olive. The wardrobe is Behr Laurel Garland (N390-6, about #68705C); chests take Cypress Vine (N390-7),
   one step darker on the same strip. His sheets and sleeping pillows are linen; the shams match the sage comforter.
+- **Pillows and throw** are shaped cloth rather than boxes. Each pillow is a stuffed shape with a
+  seam, corner ears and creases: the linen sleeping pillows stand against the headboard, the
+  quilted shams lean on them, and the piped indigo lumbar leans on the shams. The throw is a
+  chunky knit folded across the foot. It rolls over the edges, gathers into folds as it hangs and
+  ends in a fringe. Past the foot it rests on the bench. It hangs only on sides with at least 6 in
+  clear, so it never passes through a wall or a piece of furniture beside the bed
+  (`throwRoom` in `core.js`).
 - **Gear:** every ready-made layout hangs Femi's snowboard upright on a wall rack, bindings on,
   with his boots on a tray under it. A board's model lies flat instead when it is wider than tall.
   The furniture list also offers a leaning ladder shelf, which the window layout uses on the

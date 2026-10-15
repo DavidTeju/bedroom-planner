@@ -434,9 +434,9 @@ const fabricTex = (() => {
   t.repeat.set(14, 7);
   return t;
 })();
-const fabricMat = c => cached("fabric" + col(c).getHexString(), () => new THREE.MeshPhysicalMaterial({
+const fabricMat = (c, sheen = 0.8) => cached(`fabric${col(c).getHexString()}/${sheen}`, () => new THREE.MeshPhysicalMaterial({
   color: col(c), map: fabricTex, bumpMap: fabricTex, bumpScale: 0.35, roughness: 0.9,
-  sheen: 0.8, sheenRoughness: 0.6, sheenColor: shade(c, 0.4)
+  sheen, sheenRoughness: 0.6, sheenColor: shade(c, 0.4)
 }));
 // Femi's bed is upholstered in a light heather grey: frame, rails and a channel-tufted headboard.
 const BED_FABRIC = "#b8b5ae";
@@ -566,6 +566,151 @@ const rugMat = (c, name, aspect) => cached(`rug${c}/${/jute/.test(name)}/${aspec
   })
 }));
 
+// A stuffed pillow, lying flat: u runs across its width and v along its length, both -1 to 1, and
+// side is 1 for the top and -1 for the underside. The two halves meet at a seam round the edge, the
+// stuffing pulls the middle of each edge in so the corners stick out as ears, the underside settles
+// flatter than the top, creases fan in from each corner, and `dent` sinks the middle where a head goes.
+function pillowPoint(u, v, side, o) {
+  const { w, len, t, seed = 0, dent = 0 } = o;
+  const puff = Math.pow(Math.max(0, (1 - u * u) * (1 - v * v)), 0.55), inset = 0.22 * t;
+  const x = u * (w / 2 - inset * (1 - v * v)), z = v * (len / 2 - inset * (1 - u * u));
+  const cu = 1 - Math.abs(u), cv = 1 - Math.abs(v), corner = Math.exp(-(cu * cu + cv * cv) / 0.07);
+  const crease = 0.1 * t * corner * Math.sin(Math.atan2(cv, cu) * 9 + seed * 2.1 + side) * Math.sqrt(puff);
+  const lump = 0.04 * t * Math.sin(u * 3.1 + seed) * Math.sin(v * 2.6 + seed * 1.7) * puff;
+  let y = (side > 0 ? 1 : 0.75) * side * (t / 2) * puff + crease + lump;
+  if (side > 0) y -= dent * 0.32 * t * Math.exp(-((u / 0.45) ** 2) - ((v / 0.5) ** 2)) * puff;
+  return [x, y, z];
+}
+// Where a point of a cloth laid flat over a bed ends up once it drapes. The bed's top is at `top`,
+// between x0 and x1 and up to its foot at z1, with edges rounded to radius r. Cloth past an edge rolls
+// over it and hangs straight down, past a corner it falls in a cone so the corner hangs lowest, it
+// gathers into folds the further it hangs, and any that reaches the floor lies on it. `rest` is the
+// height of anything past the foot that the cloth lies on.
+function drapePoint(px, pz, b) {
+  const { x0, x1, z1, top, r, floor = 0, seed = 0, folds = 1 } = b;
+  const sx = px > (x0 + x1) / 2 ? 1 : -1, edge = sx > 0 ? x1 : x0;
+  const ex = sx * (px - edge) + r, ez = pz - z1 + r;
+  if (ex <= 0 && ez <= 0) return [px, top, pz];
+  // how far past the start of the rounding, which way it falls, and where it is along the edge
+  let e, dir, s;
+  if (ez <= 0) { e = ex; dir = [sx, 0]; s = ez; }
+  else if (ex <= 0) { e = ez; dir = [0, 1]; s = ez * Math.PI / 2 - ex; }
+  else { e = Math.hypot(ex, ez); const phi = Math.atan2(ez, ex); dir = [sx * Math.cos(phi), Math.sin(phi)]; s = e * phi; }
+  const arc = Math.PI * r / 2;
+  let out = e < arc ? r * Math.sin(e / r) : r, drop = e < arc ? r * (1 - Math.cos(e / r)) : r + e - arc;
+  const hang = folds * Math.min(2.6, Math.max(0, e - r) * 0.2);
+  const fold = hang * (0.5 + 0.3 * Math.sin(s * 0.75 + seed) + 0.2 * Math.sin(s * 1.9 + seed * 3) * Math.cos(s * 0.31 + seed));
+  out += fold;
+  drop -= 0.6 * fold * Math.min(1, Math.max(0, e - arc) / 8);
+  const cx = ex > 0 ? edge - sx * r : px, cz = ez > 0 ? z1 - r : pz;
+  // a surface past the foot, such as a bench, catches the cloth; the catch fades in round the corner
+  // as the cloth moves out over the foot, so the long side's hang meets it without a tear
+  if (b.rest !== undefined && ez > 0) {
+    const k = Math.min(1, Math.max(0, dir[1] * out / r)), limit = (top - b.rest) / Math.max(k * k * (3 - 2 * k), 1e-6);
+    drop = Math.min(drop, limit);
+  }
+  if (top - drop < floor) { out += floor - (top - drop); drop = top - floor; }
+  return [cx + dir[0] * out, top - drop, cz + dir[1] * out];
+}
+// A grid of points as one smooth surface; at(i, j) gives each point and its texture coordinate.
+function gridGeometry(nu, nv, at, flip = false) {
+  const pos = [], uv = [], idx = [];
+  for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) { const [p, t] = at(i, j); pos.push(...p); uv.push(...t); }
+  for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) {
+    const a = j * (nu + 1) + i, b = a + 1, c = a + nu + 1, d = c + 1;
+    idx.push(...(flip ? [a, b, c, b, d, c] : [a, c, b, b, c, d]));
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+// A cord along a run of points, for piping, hems and the folded edge of a throw.
+function cord(g, pts, radius, m, closed = false) {
+  const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p)), closed);
+  g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, pts.length * 2, radius, 6, closed), m));
+}
+// A pillow (see pillowPoint) placed with its middle at (x, y, z). `stand` tips it back from lying
+// flat, in radians, so the far end rests against whatever is behind it. `welt` pipes the seam.
+function pillow(g, { w, len, t, x, y, z, stand = 0, m, under = m, welt, seed = 0, dent = 0 }) {
+  const o = { w, len, t, seed, dent }, n = 40, at = side => (i, j) => {
+    const u = -1 + 2 * i / n, v = -1 + 2 * j / n;
+    return [pillowPoint(u, v, side, o), [i / n, j / n]];
+  };
+  const p = new THREE.Group();
+  p.add(new THREE.Mesh(gridGeometry(n, n, at(1)), m), new THREE.Mesh(gridGeometry(n, n, at(-1), true), under));
+  if (welt) {
+    const ring = [];
+    for (let k = 0; k < 4 * n; k++) {
+      const s = k % n / n * 2 - 1, edge = Math.floor(k / n);
+      ring.push(pillowPoint(...[[s, -1], [1, s], [-s, 1], [-1, -s]][edge], 1, o));
+    }
+    cord(p, ring, 0.22, welt, true);
+  }
+  p.position.set(x, y, z);
+  p.rotation.x = stand;
+  g.add(p);
+  return p;
+}
+// A chunky stocking-stitch knit: columns of V-shaped stitches, each leg a plump twisted loop.
+const knitTex = (() => {
+  const t = canvasTex(256, 256, (g, w, h) => {
+    const r = rng("knit"), cols = 4, rows = 5, cw = w / cols, rh = h / rows;
+    g.fillStyle = "#7c7c7c"; g.fillRect(0, 0, w, h);
+    for (let j = -1; j <= rows; j++) for (let i = 0; i < cols; i++) for (const s of [-1, 1]) {
+      const x = i * cw + cw / 2 + s * cw * 0.2, y = j * rh + rh * 0.5;
+      g.save(); g.translate(x, y); g.rotate(s * 0.5);
+      const lit = 238 + Math.floor(r() * 17), grad = g.createLinearGradient(-cw * 0.2, 0, cw * 0.2, 0);
+      grad.addColorStop(0, "rgb(150,150,150)"); grad.addColorStop(0.45, `rgb(${lit},${lit},${lit})`); grad.addColorStop(1, "rgb(160,160,160)");
+      g.fillStyle = grad; g.beginPath(); g.ellipse(0, 0, cw * 0.19, rh * 0.6, 0, 0, 7); g.fill();
+      // the twist of the yarn across each leg
+      g.strokeStyle = "rgba(0,0,0,.12)"; g.lineWidth = 2;
+      for (let k = -2; k <= 2; k++) { g.beginPath(); g.moveTo(-cw * 0.16, k * rh * 0.2 - 4); g.lineTo(cw * 0.16, k * rh * 0.2 + 4); g.stroke(); }
+      g.restore();
+    }
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+})();
+const knitMat = c => cached("knit" + col(c).getHexString(), () => new THREE.MeshPhysicalMaterial({
+  color: shade(c, 0.18), map: knitTex, bumpMap: knitTex, bumpScale: 3, roughness: 0.95, side: THREE.DoubleSide,
+  sheen: 0.6, sheenRoughness: 0.8, sheenColor: shade(c, 0.35)
+}));
+// A knit throw w by d laid flat with its middle at (cx, cz), turned `turn` radians, then draped over
+// the bed described by `bed` (see drapePoint). It is folded in half, so the edge toward the head is
+// a thick fold; the other edges are hemmed and the short ends finish in a knotted fringe.
+function throwBlanket(g, { w, d, cx, cz, turn = 0, bed, c, seed = 0 }) {
+  const nu = Math.round(w * 1.6), nv = Math.round(d * 1.6), tile = 4.5, m = knitMat(c);
+  const cos = Math.cos(turn), sin = Math.sin(turn), grid = [];
+  for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) {
+    const lx = -w / 2 + w * i / nu, lz = -d / 2 + d * j / nv;
+    const p = drapePoint(cx + lx * cos - lz * sin, cz + lx * sin + lz * cos, { ...bed, seed });
+    // the knit lies a little loose on top, in soft ripples
+    p[1] += 0.25 * Math.max(0, Math.sin(lx * 0.35 + seed) * Math.sin(lz * 0.5 - seed)) * (p[1] >= bed.top - 0.01 ? 1 : 0);
+    grid.push(p);
+  }
+  const at = (i, j) => grid[j * (nu + 1) + i];
+  g.add(new THREE.Mesh(gridGeometry(nu, nv, (i, j) => [at(i, j), [w * i / nu / tile, d * j / nv / tile]]), m));
+  const row = (j, from, to) => [...Array(Math.abs(to - from) + 1)].map((_, k) => at(from + Math.sign(to - from) * k, j));
+  const column = (i, from, to) => [...Array(Math.abs(to - from) + 1)].map((_, k) => at(i, from + Math.sign(to - from) * k));
+  cord(g, row(0, 0, nu), 0.6, m);
+  cord(g, row(nv, 0, nu), 0.3, m);
+  for (const i of [0, nu]) cord(g, column(i, 0, nv), 0.3, m);
+  // fringe: a knotted tassel every inch or so, carrying on the way the cloth falls
+  const r = rng("fringe" + seed), fringe = M(shade(c, 0.05), 0.95), knot = new THREE.SphereGeometry(0.17, 6, 4);
+  for (const [i, prev] of [[0, 4], [nu, nu - 4]]) for (let j = 1; j < nv; j++) {
+    const p = new THREE.Vector3(...at(i, j)), dir = p.clone().sub(new THREE.Vector3(...at(prev, j))).normalize();
+    dir.x += (r() - 0.5) * 0.15; dir.z += (r() - 0.5) * 0.15; dir.normalize();
+    const len = 1.6 + r() * 0.5, t = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, len, 4), fringe);
+    t.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir);
+    t.position.copy(p).addScaledVector(dir, 0.3 + len / 2);
+    const k = new THREE.Mesh(knot, fringe);
+    k.position.copy(p).addScaledVector(dir, 0.35);
+    g.add(t, k);
+  }
+}
 /* ---------- furniture models ---------- */
 // Every model is built facing +z, in a frame `a` wide and `dp` deep, with its underside at y = 0.
 const SHOE_COLORS = ["#2b2d33", "#f1efe9", "#8a4b2a", "#3d5a80", "#b23a48", "#5b6e4d", "#c9a227", "#6d6875"];
@@ -617,16 +762,26 @@ const MODELS = {
     const duvet = bxm(g, a + 0.8, mh * 0.8 + 1.2, dl, 0, h - mh * 0.8, foot - dl / 2 + 0.3, side, 1.6);
     duvet.material = [side, side, quiltMat(c, (a + 0.8) / dl), side, side, side];
     bxm(g, a + 1, 1.4, 7, 0, h + 0.5, foot - dl + 2, sheets, 0.6); // sheet turned down over the comforter
-    // sleeping pillows in linen, the comforter's shams leaning in front, and one indigo pillow
-    const pw = (a - 9) / 2, head = zc - len / 2, shams = M(c, 0.95);
-    for (const sx of [-1, 1]) bxm(g, pw, 5, 16, sx * (pw / 2 + 1.5), h - 0.4, head + 10, sheets, 2.2).rotation.x = -0.22;
-    for (const sx of [-1, 1]) bxm(g, pw - 2, 5.5, 15, sx * (pw / 2 + 1.5), h + 1.2, head + 15, shams, 2.4).rotation.x = -0.75;
-    bxm(g, Math.min(20, a * 0.32), 4.5, 10, 0, h + 1.6, head + 20, fabricMat(THEME.accent), 2).rotation.x = -0.6;
-    // a throw folded across the foot: a layer on top, a drape down the foot end and a tail over one side
-    const tl = len * 0.28, cloth = fabricMat(THEME.throw), drop = Math.min(10, h * 0.4);
-    bxm(g, a + 1.6, 0.9, tl, 0, h + 1.2, foot - tl / 2 + 0.3, cloth, 0.4);
-    bxm(g, a * 0.94, drop, 0.9, -a * 0.03, h + 2.1 - drop, foot + 0.75, cloth, 0.4);
-    bxm(g, 0.9, drop + 4, tl * 0.75, a / 2 + 1.25, h + 2.1 - drop - 4, foot - tl * 0.45, cloth, 0.4);
+    // linen sleeping pillows standing against the headboard, the comforter's quilted shams leaning on
+    // them, and one piped indigo lumbar pillow leaning on the shams
+    const pw = (a - 9) / 2, head = zc - len / 2, linen = fabricMat(THEME.sheets);
+    for (const sx of [-1, 1]) pillow(g, { w: pw - 1, len: 19, t: 6.5, x: sx * (pw / 2 + 1.5), y: h + 9.2, z: head + 6.5, stand: 1.25, m: linen, seed: sx, dent: 0.35 });
+    const shamW = pw - 2.5, sham = quiltMat(c, shamW / 20), shamBack = M(c, 0.95);
+    for (const sx of [-1, 1]) pillow(g, { w: shamW, len: 20, t: 6, x: sx * (pw / 2 + 1.5), y: h + 8.9, z: head + 15.6, stand: 0.9, m: sham, under: shamBack, welt: M(shade(c, -0.08), 0.95), seed: 3 + sx });
+    const accent = fabricMat(THEME.accent, 0.2);
+    pillow(g, { w: Math.min(20, a * 0.32), len: 12, t: 5, x: 0, y: h + 6, z: head + 22.6, stand: 1.1, m: accent, welt: M(shade(THEME.accent, -0.35), 0.8), seed: 7 });
+    // a chunky terracotta knit throw folded in half across the foot, a little off square. It hangs
+    // down each long side and just over the foot end (above the bench) where there is room for it,
+    // and stops short of the edge where the bed meets a wall or a piece of furniture.
+    const lift = 0.5, top = h + 1.2 + lift, half = (a + 0.8) / 2 + lift, r = 1.6 + lift, z1 = foot + 0.3 + lift;
+    const room = throwRoom(it), past = drop => drop + top - h - r + Math.PI * r / 2, open = k => room[k] >= 6;
+    const xL = open("left") ? -(half - r + past(THROW_DROP.side)) : -(half - r - 3);
+    const xR = open("right") ? half - r + past(THROW_DROP.side * 0.7) : half - r - 3; // room for the fringe on top
+    const zF = open("foot") ? z1 - r + past(THROW_DROP.foot) : z1 - r - 1.5, zH = z1 - r - 20;
+    throwBlanket(g, {
+      w: xR - xL, d: zF - zH, cx: (xL + xR) / 2, cz: (zH + zF) / 2, turn: open("left") && open("right") ? 0.05 : 0, c: THEME.throw, seed: it.id.length,
+      bed: { x0: -half, x1: half, z1, top, r, floor: 0.2, rest: room.shelf > it.z ? room.shelf - it.z + 0.4 : undefined }
+    });
     if (hb) {
       bxm(g, a, it.headH, hb, 0, 0, -dp / 2 + hb / 2, frame, 0.8);
       const padH = it.headH - h + 2, pad = bxm(g, a - 0.4, padH, 1.2, 0, h - 2, -dp / 2 + hb + 0.6, frame, 0.5);
@@ -1200,7 +1355,8 @@ function sync() {
   if (key !== roomKey) { roomKey = key; buildRoom(); }
   const seen = new Set();
   for (const it of state.items) {
-    const face = frontDir(it), k = JSON.stringify([kindOf(it), it.name, it.w, it.d, it.h, it.color, it.headH, it.headT, face, it.z > 0]);
+    const face = frontDir(it), k = JSON.stringify([kindOf(it), it.name, it.w, it.d, it.h, it.color, it.headH, it.headT, face, it.z > 0,
+      kindOf(it) === "bed" && throwRoom(it)]); // a bed's throw drapes into whatever room its sides have
     let b = built.get(it.id);
     if (!b || b.key !== k) {
       if (b) { wipe(b.group); itemsG.remove(b.group); }
