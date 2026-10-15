@@ -609,3 +609,34 @@ test("cloth past the foot of the bed rests on a bench there instead of passing t
   const side = drapePoint(48, 20, bed), free = drapePoint(48, 20, { ...bed, rest: undefined });
   assert.deepEqual(Array.from(side), Array.from(free), "the long sides still hang free");
 });
+
+test("Femi's own photographs hang in the ready-made layouts, every pick at least once", () => {
+  const run = loadCore();
+  const prints = JSON.parse(run("JSON.stringify(PRINTS)"));
+  assert.equal(Object.keys(prints).length, 19, "13 from round one, 6 from round two");
+  for (const [key, p] of Object.entries(prints)) {
+    assert.match(p.file, /^prints\/[a-z0-9-]+\.jpg$/, key);
+    assert.ok(fs.existsSync(new URL(p.file, dir)), key + " has its picture");
+    assert.ok(p.title && p.place && /^\d{4}-\d{2}$/.test(p.taken) && p.w > 0 && p.h > 0, key + " is described");
+  }
+  const art = JSON.parse(run(`JSON.stringify(BUILTIN.flatMap(p => p.items.filter(i => i.kind === "art")))`));
+  const used = new Set(art.flatMap(i => i.photos || []));
+  assert.deepEqual([...used].sort(), Object.keys(prints).sort(), "every pick hangs somewhere");
+  assert.deepEqual([...new Set(art.filter(i => !(i.photos || []).length).map(i => i.name))], ["Framed topo map"], "no made-up pictures left");
+  for (const i of art) for (const k of i.photos || []) assert.ok(prints[k], i.name + " names a known print");
+});
+
+test("the print files carry no location or camera details", () => {
+  for (const f of fs.readdirSync(new URL("prints/", dir))) {
+    const bytes = fs.readFileSync(new URL("prints/" + f, dir));
+    assert.equal(bytes.indexOf(Buffer.from("Exif\0\0")), -1, f + " has no EXIF block");
+    assert.ok(bytes.length < 600_000, f + " is web-sized");
+  }
+});
+
+test("both views show the photo in a frame, and the Selected panel can swap it", () => {
+  const html = read("index.html"), plan = read("plan.html"), core = read("core.js");
+  assert.match(html.match(/^\s{2}art\(g, \{[\s\S]*?^\s{2}\},$/m)[0], /photoMat\(/, "3D frames use the photo as their picture");
+  assert.match(plan, /<image [^>]*href="\$\{PRINTS\[/, "the wall views draw the photo");
+  assert.match(core, /data-k="photo"/, "a photo picker for art pieces");
+});

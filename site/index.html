@@ -373,6 +373,16 @@ const pictureMat = (name, seed, aspect) => cached(`pic${name}/${seed}/${aspect.t
   const w = aspect >= 1 ? 512 : Math.round(512 * aspect), h = aspect >= 1 ? Math.round(512 / aspect) : 512;
   return new THREE.MeshStandardMaterial({ map: canvasTex(w, h, (g, cw, ch) => PICTURES[pictureFor(name)](g, cw, ch, rng(seed))), roughness: 0.6 });
 });
+// One of Femi's prints, cropped to fill a pane of the given shape the way a print shop would.
+const photoLoader = new THREE.TextureLoader();
+const photoMat = (key, aspect) => cached(`photo${key}/${aspect.toFixed(2)}`, () => {
+  const p = PRINTS[key], t = photoLoader.load(p.file), img = p.w / p.h;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  if (img > aspect) { t.repeat.set(aspect / img, 1); t.offset.set((1 - aspect / img) / 2, 0); }
+  else { t.repeat.set(1, img / aspect); t.offset.set(0, (1 - img / aspect) / 2); }
+  return new THREE.MeshStandardMaterial({ map: t, roughness: 0.45 });
+});
 // Indigo resist-dyed cloth: a grid of cells, each with its own motif.
 const adireMat = (c, aspect) => cached(`adire${c}/${aspect.toFixed(2)}`, () => new THREE.MeshStandardMaterial({
   roughness: 1, side: THREE.DoubleSide,
@@ -1006,8 +1016,9 @@ const MODELS = {
     const mat = /grid/.test(name) || a < 12 ? 0.6 : Math.min(3, a * 0.11);
     bxm(g, a, h, dp, 0, 0, 0, M(pick(r, ["#1f1f22", "#8a6a45", "#f3f0e8"]), 0.6), 0.1);
     bxm(g, a - 1.6, h - 1.6, 0.06, 0, 0.8, dp / 2 + 0.03, M("#f6f3ec", 0.9));
-    const pw = a - 1.6 - 2 * mat, ph = h - 1.6 - 2 * mat;
-    bxm(g, pw, ph, 0.06, 0, 0.8 + mat, dp / 2 + 0.08, pictureMat(name, it.id + name, pw / ph));
+    const pw = a - 1.6 - 2 * mat, ph = h - 1.6 - 2 * mat, photos = (it.photos || []).filter(k => PRINTS[k]);
+    if (!photos.length) { bxm(g, pw, ph, 0.06, 0, 0.8 + mat, dp / 2 + 0.08, pictureMat(name, it.id + name, pw / ph)); return; }
+    for (const p of photoPanes(photos, pw, ph)) bxm(g, p.w, p.h, 0.06, p.x, 0.8 + mat + p.y, dp / 2 + 0.08, photoMat(p.key, p.w / p.h));
   },
   textile(g, { a, dp, h, c }) {
     cyl(g, 0.5, 0.5, a + 3, 0, h - 0.5, 0, wood("#7a5a3c"), "x");
@@ -1356,7 +1367,7 @@ function sync() {
   const seen = new Set();
   for (const it of state.items) {
     const face = frontDir(it), k = JSON.stringify([kindOf(it), it.name, it.w, it.d, it.h, it.color, it.headH, it.headT, face, it.z > 0,
-      kindOf(it) === "bed" && throwRoom(it)]); // a bed's throw drapes into whatever room its sides have
+      kindOf(it) === "bed" && throwRoom(it), it.photos]); // a bed's throw drapes into whatever room its sides have
     let b = built.get(it.id);
     if (!b || b.key !== k) {
       if (b) { wipe(b.group); itemsG.remove(b.group); }

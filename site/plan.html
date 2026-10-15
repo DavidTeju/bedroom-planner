@@ -161,10 +161,12 @@ function elevDeco(p, x, y, w, h) {
   else if (k === "chair" && h > 12) g += seg(x, y + h * 0.55, x + w, y + h * 0.55) + box(x + 3, y + 2, w - 6, h * 0.55 - 4, "deco", 3);
   else if (k === "sconce" && h > 4) g += box(x + w / 2 - 1, y + h * 0.5, 2, h * 0.45, "deco-dark") + `<polygon class="deco-fill" points="${x + 0.5},${y + h * 0.5} ${x + w - 0.5},${y + h * 0.5} ${x + w * 0.72},${y} ${x + w * 0.28},${y}"/>`;
   else if (k === "art" && w > 6) {
-    // frame, mat, and a small ridge-and-sun picture
-    const ix = x + 3, iy = y + 3, iw = w - 6, ih = h - 6;
+    // frame and mat, then Femi's photo (or a small ridge-and-sun picture), cropped to fill like a print
+    const ix = x + 3, iy = y + 3, iw = w - 6, ih = h - 6, photos = (p.it.photos || []).filter(k => PRINTS[k]);
     g += box(x + 0.8, y + 0.8, w - 1.6, h - 1.6) + box(ix, iy, iw, ih, "deco-fill");
-    if (iw > 6 && ih > 6) g += `<polyline class="deco" points="${ix},${iy + ih} ${ix + iw * 0.3},${iy + ih * 0.4} ${ix + iw * 0.48},${iy + ih * 0.7} ${ix + iw * 0.68},${iy + ih * 0.3} ${ix + iw},${iy + ih}"/><circle class="deco" cx="${ix + iw * 0.82}" cy="${iy + ih * 0.22}" r="${Math.min(iw, ih) * 0.08}"/>`;
+    if (photos.length) g += photoPanes(photos, iw, ih).map(q =>
+      `<image href="${PRINTS[q.key].file}" x="${ix + iw / 2 + q.x - q.w / 2}" y="${iy + ih - q.y - q.h}" width="${q.w}" height="${q.h}" preserveAspectRatio="xMidYMid slice"><title>${PRINTS[q.key].title}</title></image>`).join("");
+    else if (iw > 6 && ih > 6) g += `<polyline class="deco" points="${ix},${iy + ih} ${ix + iw * 0.3},${iy + ih * 0.4} ${ix + iw * 0.48},${iy + ih * 0.7} ${ix + iw * 0.68},${iy + ih * 0.3} ${ix + iw},${iy + ih}"/><circle class="deco" cx="${ix + iw * 0.82}" cy="${iy + ih * 0.22}" r="${Math.min(iw, ih) * 0.08}"/>`;
   } else if (k === "textile" && w > 6) {
     g += seg(x - 1.5, y + 0.6, x + w + 1.5, y + 0.6);
     for (let a = 3; a < w - 1; a += 3) g += `<line class="deco" stroke="#fff" x1="${x + a}" y1="${y + 2}" x2="${x + a}" y2="${y + h - 4}" style="stroke:#fff;stroke-opacity:.7"/>`;
