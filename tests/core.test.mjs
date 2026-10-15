@@ -338,3 +338,12 @@ test("each plan row stacks its note under the name and ends in a same-size copy-
   assert.match(core, /e\.target\.closest\("\[data-copy\]"\)/);
   assert.match(css, /ul\.plans \.link \{[^}]*width: 28px/);
 });
+
+test("every sidebar section but Selected collapses, and the room section starts collapsed", () => {
+  const run = loadCore();
+  const side = run("SIDEBAR");
+  assert.deepEqual([...side.matchAll(/<div class="card"[^>]*>/g)].map(m => m[0]), ['<div class="card" id="selCard">']);
+  const sections = [...side.matchAll(/<details class="card" data-section="(\w+)"( open)?>\s*<summary>/g)].map(m => [m[1], !!m[2]]);
+  assert.deepEqual(sections, [["furniture", true], ["plans", true], ["room", false], ["save", true], ["keys", true]]);
+  assert.doesNotMatch(side, /<h2>/);
+});

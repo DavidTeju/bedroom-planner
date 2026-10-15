@@ -465,30 +465,28 @@ function select(id) { selId = id; buildSelForm(); draw(); }
 
 /* ---------- sidebar wiring ---------- */
 const SIDEBAR = `<div class="card" id="selCard"></div>
-<div class="card">
-  <h2>Furniture</h2>
+<details class="card" data-section="furniture" open>
+  <summary>Furniture</summary>
   <ul id="list"></ul>
   <div class="row two" style="margin-top:10px">
     <select id="preset"></select>
     <button id="add">Add</button>
   </div>
-</div>
-<div class="card">
-  <h2>Plans</h2>
+</details>
+<details class="card" data-section="plans" open>
+  <summary>Plans</summary>
   <div id="plansBox"></div>
   <div class="row two"><input id="planName" placeholder="Name this plan"><button id="savePlan">Save as new plan</button></div>
   <button id="updatePlan" hidden></button>
   <p class="hint" id="planWhy" style="color:var(--ink)"></p>
   <p class="hint" id="planHint"></p>
-</div>
-<div class="card">
-  <details>
-    <summary>Room, doors and window</summary>
-    <div id="roomForm"></div>
-  </details>
-</div>
-<div class="card">
-  <h2>Save</h2>
+</details>
+<details class="card" data-section="room">
+  <summary>Room, doors and window</summary>
+  <div id="roomForm"></div>
+</details>
+<details class="card" data-section="save" open>
+  <summary>Save</summary>
   <div class="btns">
     <button id="export">Export JSON</button>
     <button id="import">Import JSON</button>
@@ -497,11 +495,13 @@ const SIDEBAR = `<div class="card" id="selCard"></div>
   </div>
   <input type="file" id="file" accept="application/json" hidden>
   <p class="hint">Your work and saved plans stay in this browser. Export writes everything, plans included, to one JSON file.</p>
-</div>
-<div class="card">
-  <h2>Keys and rules</h2>
+</details>
+<details class="card" data-section="keys" open>
+  <summary>Keys and rules</summary>
   <p class="hint" id="keysHint" style="margin:0">Arrow keys nudge 1″ (Shift = 6″), R rotates, Delete removes, Esc deselects. Solid pieces stop at walls and at each other. A red dashed outline means a piece blocks a door swing, a room door's or a wardrobe's, or overlaps something.</p>
-</div>`;
+</details>`;
+// Which sidebar sections this browser has opened or closed, by data-section name.
+const SECTIONS_KEY = "bedroom-planner-sections-v1";
 const OPPOSITE = { N: "S", E: "W", S: "N", W: "E" };
 // Which way a piece's front points. Beds face away from the headboard; everything else faces
 // away from the wall it is nearest, measured across its short side, unless a facing was chosen.
@@ -531,6 +531,15 @@ function act(a) {
 }
 function initPlanner() {
   $("#side").innerHTML = SIDEBAR;
+  let sections = {};
+  try { sections = JSON.parse(localStorage.getItem(SECTIONS_KEY)) || {}; } catch { /* no storage: every section starts as shipped */ }
+  for (const d of document.querySelectorAll("#side details[data-section]")) {
+    if (Object.hasOwn(sections, d.dataset.section)) d.open = sections[d.dataset.section];
+    d.addEventListener("toggle", () => {
+      sections[d.dataset.section] = d.open;
+      try { localStorage.setItem(SECTIONS_KEY, JSON.stringify(sections)); } catch { /* still toggles, just not remembered */ }
+    });
+  }
   $("#list").addEventListener("click", e => { const li = e.target.closest("li"); if (li) select(li.dataset.id); });
   $("#selCard").addEventListener("input", e => {
     const it = sel(), k = e.target.dataset.k;

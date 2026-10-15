@@ -50,5 +50,12 @@ ul#list li.sel { border-color: var(--accent); }
 ul#list small { color: var(--muted); margin-left: auto; white-space: nowrap; }
 details summary { cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 details[open] summary { margin-bottom: 10px; }
+/* Sidebar sections: the heading folds the section, with a chevron that turns as it opens. */
+details.card > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; font-weight: 700; user-select: none; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary::after { content: ""; width: 7px; height: 7px; margin-right: 3px; border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform .15s; }
+details.card[open] > summary::after { transform: rotate(45deg); }
+details.card > summary:hover { color: var(--ink); }
 .opbox { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
 .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
