@@ -1,27 +1,31 @@
 #!/usr/bin/env bash
-# Ships the committed site/ to the projects VPS and points the live symlink at it.
-# Usage: deploy/deploy.sh   (from a clean checkout)
+# Makes the pushed HEAD of main live on the projects VPS. GitHub Actions builds every push and
+# stages it there as bedroom-planner:next; this promotes it and checks the pages load.
+# Usage: deploy/deploy.sh   (from a clean checkout of a pushed main)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 if [[ -n "$(git status --porcelain)" ]]; then
 	echo "Refusing to deploy uncommitted changes." >&2
 	exit 1
 fi
-sha=$(git rev-parse --short=12 HEAD)
-release="/srv/bedroom-planner/releases/$sha"
-git archive --format=tar HEAD site | ssh projects "sudo mkdir -p '$release' && sudo tar -x --strip-components=1 -C '$release'"
+git fetch --quiet origin main
+sha=$(git rev-parse HEAD)
+if [[ "$sha" != "$(git rev-parse origin/main)" ]]; then
+	echo "HEAD is not origin/main; push it (CI only builds main) or check out origin/main." >&2
+	exit 1
+fi
 
-ssh projects bash -s -- "$release" "$sha" <<'REMOTE'
-set -euo pipefail
-release=$1
-sha=$2
-# swap the symlink in one rename so a request never sees a half-switched site
-sudo ln -sfn "$release" /srv/bedroom-planner/current.next
-sudo mv -T /srv/bedroom-planner/current.next /srv/bedroom-planner/current
-echo "$sha" | sudo tee /srv/bedroom-planner/DEPLOYED_SHA >/dev/null
-REMOTE
+# Wait for the Image workflow that builds this commit, so its image is staged.
+run=$(gh run list --workflow image.yml --commit "$sha" --limit 1 --json databaseId --jq '.[0].databaseId')
+if [[ -z "$run" ]]; then
+	echo "No Image workflow run for $sha yet; wait a few seconds and retry." >&2
+	exit 1
+fi
+gh run watch "$run" --exit-status --interval 10 >/dev/null
 
+# Copies the site out of the image and swaps the `current` symlink in one rename.
+ssh projects "sudo deploy-app bedroom-planner promote $sha"
 for page in / /plan.html /core.js /core.css; do
 	curl -fsS -o /dev/null "https://bedroom.davidteju.dev$page"
 done
-echo "bedroom.davidteju.dev serves $sha"
+echo "bedroom.davidteju.dev serves ${sha:0:12}"

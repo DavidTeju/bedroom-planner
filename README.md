@@ -115,10 +115,17 @@ the `X-Robots-Tag: noindex` header still keeps everything out of search results.
 npm run deploy
 ```
 
-`deploy/deploy.sh` refuses uncommitted changes. It ships the committed `site/` to
-`/srv/bedroom-planner/releases/<sha>` on the `projects` VPS, repoints
-`/srv/bedroom-planner/current` at it, records the commit in `/srv/bedroom-planner/DEPLOYED_SHA`,
-and checks that the pages load over HTTPS. To roll back, repoint `current` at an earlier release.
+Every push to `main` runs the [Image workflow](.github/workflows/image.yml): it runs the tests,
+builds an image holding only `site/` (see the [Dockerfile](Dockerfile)), pushes it to
+`ghcr.io/davidteju/bedroom-planner:<sha>`, and stages it on the VPS as `bedroom-planner:next`
+through a deploy key that can do nothing else. Nothing goes live on its own.
+
+`deploy/deploy.sh` refuses uncommitted changes and any HEAD that is not `origin/main`. It waits for
+the commit's Image run, then runs `deploy-app bedroom-planner promote <sha>` on the VPS, which copies
+the site into `/srv/bedroom-planner/site-<sha>`, repoints `/srv/bedroom-planner/current` at it in one
+rename, and points `previous` at the copy that was live. Older copies are deleted. It records the
+commit in `/srv/bedroom-planner/DEPLOYED_SHA` and checks that the pages load over HTTPS. To roll
+back, `ssh projects sudo deploy-app bedroom-planner rollback` swaps `current` and `previous`.
 
 nginx serves `current` as static files. The vhost is [deploy/nginx.conf](deploy/nginx.conf),
 installed as `/etc/nginx/sites-available/bedroom-planner` and tracked in the
