@@ -38,6 +38,10 @@ A planner for Femi's San Francisco bedroom, built from his own measurements. Inc
   painter's filter (Kuwahara), so it reads as smooth flat strokes with sharp edges and sits in the
   flat-shaded room; the 2D wall views show the photos plain. A frame can hold one photo or a grid (`photos` on the item). The Selected panel's **Photo**
   menu swaps which one a frame shows.
+- **Frames** are ornate antique gilt (`giltFrame` in `core.js`, shared by both views): a gilt lip, a
+  dark cove, a carved band and a bright bead, then a linen liner around the picture. The moulding
+  is 12% of the shorter side, between 1¼ and 4½ in, and frames with a moulding of 2 in or more
+  carry corner rosettes. In 3D the carved band is a drawn texture of C-scrolls, leaves and rosettes.
 - **Gear:** every ready-made layout hangs Femi's snowboard upright on a wall rack, bindings on,
   with his boots on a tray under it. A board's model lies flat instead when it is wider than tall.
   The furniture list also offers a leaning ladder shelf, which the window layout uses on the

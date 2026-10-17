@@ -686,3 +686,43 @@ test("every inline script on both pages parses", async () => {
     }
   } finally { fs.rmSync(tmp, { recursive: true }); }
 });
+
+test("every frame is an ornate gilt moulding: stepped bands, a carved band, a linen liner, then the picture", () => {
+  const run = loadCore();
+  const frame = (w, h) => JSON.parse(run(`JSON.stringify(giltFrame(${w}, ${h}))`));
+  for (const [w, h] of [[48, 40], [40, 27], [24, 18], [14, 21], [18, 24]]) {
+    const f = frame(w, h);
+    let edge = 0;
+    for (const b of f.bands) {
+      assert.ok(Math.abs(b.inset - edge) < 1e-9 && b.width > 0, `${w}x${h}: bands run edge to edge without gaps`);
+      edge += b.width;
+    }
+    assert.ok(Math.abs(edge - f.fw) < 1e-9, `${w}x${h}: the bands fill the moulding`);
+    assert.ok(f.bands.some(b => b.tone === "carved"), `${w}x${h}: a carved band`);
+    assert.ok(f.bands.every(b => b.rise > 0), `${w}x${h}: every band stands proud of the wall`);
+    assert.ok(f.bands.every(b => /^#[0-9a-f]{6}$/.test(b.color)), `${w}x${h}: one gilt palette, shared by both views`);
+    assert.equal(f.opening.inset, f.fw + f.liner, `${w}x${h}: the picture starts inside moulding and liner`);
+    assert.ok(Math.abs(f.opening.w - (w - 2 * f.opening.inset)) < 1e-9 && Math.abs(f.opening.h - (h - 2 * f.opening.inset)) < 1e-9, `${w}x${h}: the picture sits inside moulding and liner`);
+    assert.ok(f.opening.w > w * 0.6 && f.opening.h > h * 0.6, `${w}x${h}: the frame never swallows the picture`);
+  }
+  assert.ok(frame(48, 40).fw > frame(14, 21).fw, "bigger pieces get a wider moulding");
+  assert.ok(frame(48, 40).fw <= 4.5 && frame(10, 10).fw >= 1.25, "the moulding width is clamped");
+  const big = frame(48, 40), carved = big.bands.find(b => b.tone === "carved");
+  assert.ok(Math.abs(big.corners.d - (carved.inset + carved.width / 2)) < 1e-9 && big.corners.r > 0 && big.corners.r < carved.width, "large frames carry rosettes centred on the carved band");
+  assert.equal(frame(14, 14).corners, null, "small frames go without");
+  const art = JSON.parse(run(`JSON.stringify(BUILTIN.flatMap(p => p.items.filter(i => i.kind === "art").map(i => [i.w > i.d ? i.w : i.d, i.h])))`));
+  for (const [w, h] of art) { const f = frame(w, h); assert.ok(f.opening.w > 0 && f.opening.h > 0, `${w}x${h} keeps a picture`); }
+});
+
+test("both views draw the gilt moulding from the shared profile", () => {
+  const html = read("index.html"), plan = read("plan.html");
+  const art3d = html.match(/^\s{2}art\(g, \{[\s\S]*?^\s{2}\},$/m)[0];
+  assert.match(art3d, /giltFrame\(/, "the 3D frame follows the shared profile");
+  assert.match(art3d, /carvedMat\(/, "the 3D carved band is carved");
+  assert.match(art3d, /mergeGeometries\(/, "a frame's parts merge into one mesh per material");
+  assert.match(art3d, /noCast = true/, "a frame flush to the wall casts no shadow");
+  assert.doesNotMatch(art3d, /#1f1f22|#8a6a45|#f3f0e8/, "no plain black, wood or white frames");
+  const art2d = plan.slice(plan.indexOf('k === "art"'), plan.indexOf('k === "textile"'));
+  assert.match(art2d, /giltFrame\(/, "the wall views follow the shared profile");
+  assert.match(art2d, /b\.color/, "the wall views paint each band in the shared palette");
+});

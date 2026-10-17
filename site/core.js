@@ -74,6 +74,26 @@ function photoPanes(photos, pw, ph) {
   const cw = (pw - gap * (cols - 1)) / cols, ch = (ph - gap * (rows - 1)) / rows;
   return photos.map((key, i) => ({ key, w: cw, h: ch, x: -pw / 2 + cw / 2 + (i % cols) * (cw + gap), y: ph - ch - Math.floor(i / cols) * (ch + gap) }));
 }
+// The ornate gilt moulding every frame wears, for a piece w by h (inches, outer size). From the
+// outside in: a gilt lip, a dark cove, a carved band and a bright bead, then a linen liner and the
+// picture. inset is each band's distance from the outer edge; rise how far it stands off the wall.
+// Mouldings 2 in or wider carry a rosette at each corner, d in from both edges.
+function giltFrame(w, h) {
+  const short = Math.min(w, h), fw = Math.min(4.5, Math.max(1.25, short * 0.12));
+  const liner = Math.min(1.75, Math.max(0.4, short * 0.045)), depth = 0.5 + fw / 9;
+  let inset = 0;
+  const bands = [["gilt", 0.2, 1, "#c9a04a"], ["shadow", 0.16, 0.7, "#6b4d20"], ["carved", 0.44, 1.3, "#d4ad55"], ["bead", 0.2, 0.85, "#e5c46a"]].map(([tone, share, rise, color]) => {
+    const b = { tone, color, inset, width: fw * share, rise: rise * depth };
+    inset += b.width;
+    return b;
+  });
+  const carved = bands[2], m = fw + liner;
+  return {
+    fw, liner, linen: "#e8dec6", bands,
+    corners: fw >= 2 ? { d: carved.inset + carved.width / 2, r: carved.width * 0.65, rise: carved.rise + 0.3 } : null,
+    opening: { inset: m, w: w - 2 * m, h: h - 2 * m }
+  };
+}
 // [name, kind, x, y, width, depth, height, off floor, headboard side], optionally ending in extra fields such as { photos }
 const pc = (row, i) => {
   const extra = typeof row[row.length - 1] === "object" ? row[row.length - 1] : {};

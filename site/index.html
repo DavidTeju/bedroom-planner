@@ -133,6 +133,7 @@ setTimeout(() => { if (!window.__planner) document.getElementById("fail").hidden
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
@@ -373,6 +374,52 @@ const pictureMat = (name, seed, aspect) => cached(`pic${name}/${seed}/${aspect.t
   const w = aspect >= 1 ? 512 : Math.round(512 * aspect), h = aspect >= 1 ? Math.round(512 / aspect) : 512;
   return new THREE.MeshStandardMaterial({ map: canvasTex(w, h, (g, cw, ch) => PICTURES[pictureFor(name)](g, cw, ch, rng(seed))), roughness: 0.6 });
 });
+// Carving for the gilt frames' carved band: C-scrolls, leaves and a rosette in worn gold leaf, drawn
+// along a band len long and T across. One tile runs four times as long as it is wide; a vertical
+// rail gets the same carving turned upright.
+function paintCarving(g, len, T) {
+  const grad = g.createLinearGradient(0, 0, 0, T);
+  grad.addColorStop(0, "#e9c870"); grad.addColorStop(0.5, "#b8903e"); grad.addColorStop(1, "#7d5c24");
+  g.fillStyle = grad; g.fillRect(0, 0, len, T);
+  const r = rng("carving"), mid = T / 2, step = len / 2;
+  for (let k = 0; k < 2; k++) {
+    const cx = step * k + step / 2;
+    for (const [dx, lw, col] of [[1.5, T * 0.11, "rgba(70,45,12,.75)"], [0, T * 0.08, "#f6dc8c"]]) {
+      g.strokeStyle = col; g.lineWidth = lw; g.lineCap = "round";
+      for (const s of [-1, 1]) { // a C-scroll each side of the rosette
+        g.beginPath(); g.arc(cx + s * step * 0.28 + dx, mid + dx, T * 0.26, s > 0 ? Math.PI * 0.6 : -Math.PI * 0.4, s > 0 ? Math.PI * 2.1 : Math.PI * 1.1); g.stroke();
+      }
+    }
+    g.fillStyle = "rgba(70,45,12,.7)"; g.beginPath(); g.arc(cx + 1.5, mid + 1.5, T * 0.2, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#f3d683"; g.beginPath(); g.arc(cx, mid, T * 0.18, 0, Math.PI * 2); g.fill();
+    for (const s of [-1, 1]) { // leaves at the tile's ends
+      g.fillStyle = "#d9b45e"; g.beginPath(); g.ellipse(cx + s * step * 0.48, mid, T * 0.22, T * 0.1, s * 0.5, 0, Math.PI * 2); g.fill();
+    }
+  }
+  for (let i = 0; i < 260; i++) { // worn leaf: the dark bole showing through
+    g.fillStyle = `rgba(60,38,10,${0.08 + r() * 0.18})`;
+    g.fillRect(r() * len, r() * T, 1 + r() * 2, 1 + r() * 2);
+  }
+}
+const CARVED = {
+  h: canvasTex(256, 64, paintCarving),
+  v: canvasTex(64, 256, (g, w, h) => { g.translate(w, 0); g.rotate(Math.PI / 2); paintCarving(g, h, w); })
+};
+// Gold leaf for a plain band of a gilt frame, in the shared palette: [roughness, metalness] per tone.
+const GILT_FINISH = { gilt: [0.36, 0.85], shadow: [0.7, 0.4], bead: [0.28, 0.9] };
+const giltMat = b => M(b.color, ...GILT_FINISH[b.tone]);
+// The carved band's carving, repeated along a rail len long and across wide; vertical rails use
+// the upright tile.
+function carvedMat(len, across, vertical = false) {
+  const n = Math.max(1, Math.round(len / (across * 4)));
+  return cached(`giltcarved/${n}/${vertical}`, () => {
+    const t = (vertical ? CARVED.v : CARVED.h).clone();
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    if (vertical) t.repeat.set(1, n); else t.repeat.set(n, 1);
+    t.needsUpdate = true;
+    return new THREE.MeshStandardMaterial({ map: t, bumpMap: t, bumpScale: 1.2, metalness: 0.7, roughness: 0.42 });
+  });
+}
 // A painter's filter (Kuwahara): each pixel takes the average colour of whichever of the four
 // r-pixel squares touching it varies least, so flat areas lose their speckle while edges stay sharp.
 // Squares are clipped to the image, so nothing wraps round from the far side. RGBA in, RGBA out.
@@ -1053,13 +1100,35 @@ const MODELS = {
       bxm(g, a - 2.4, h - 2.4, 0.1, 0, 1.2, dp / 2 + 0.05, MIRROR);
     }
   },
-  art(g, { a, dp, h, name, r, it }) {
-    const mat = /grid/.test(name) || a < 12 ? 0.6 : Math.min(3, a * 0.11);
-    bxm(g, a, h, dp, 0, 0, 0, M(pick(r, ["#1f1f22", "#8a6a45", "#f3f0e8"]), 0.6), 0.1);
-    bxm(g, a - 1.6, h - 1.6, 0.06, 0, 0.8, dp / 2 + 0.03, M("#f6f3ec", 0.9));
-    const pw = a - 1.6 - 2 * mat, ph = h - 1.6 - 2 * mat, photos = (it.photos || []).filter(k => PRINTS[k]);
-    if (!photos.length) { bxm(g, pw, ph, 0.06, 0, 0.8 + mat, dp / 2 + 0.08, pictureMat(name, it.id + name, pw / ph)); return; }
-    for (const p of photoPanes(photos, pw, ph)) bxm(g, p.w, p.h, 0.06, p.x, 0.8 + mat + p.y, dp / 2 + 0.08, photoMat(p.key, p.w, p.h));
+  art(g, { a, dp, h, name, it }) {
+    // an ornate gilt moulding, then a linen liner and the picture. The moulding's rails and rosettes
+    // merge into one mesh per material, and flush to the wall it casts no shadow worth drawing.
+    const f = giltFrame(a, h), back = -dp / 2, parts = new Map();
+    const add = (mat, geo, x, y, z) => { geo.translate(x, y, z); parts.set(mat, [...(parts.get(mat) || []), geo]); };
+    const rail = (mat, w, ht, d, x, y, z) => add(mat, new THREE.BoxGeometry(w, ht, d), x, y + ht / 2, z);
+    for (const b of f.bands) {
+      const ow = a - 2 * b.inset, side = h - 2 * b.inset - 2 * b.width, w = b.width, z = back + b.rise / 2;
+      const flat = b.tone === "carved" ? null : giltMat(b);
+      for (const y of [b.inset, h - b.inset - w]) rail(flat || carvedMat(ow, w), ow, w, b.rise, 0, y, z);
+      for (const s of [-1, 1]) rail(flat || carvedMat(side, w, true), w, side, b.rise, s * (ow - w) / 2, b.inset + w, z);
+    }
+    if (f.corners) {
+      const { d, r, rise } = f.corners, [lip, , , bead] = f.bands;
+      for (const x of [d - a / 2, a / 2 - d]) for (const y of [d, h - d]) {
+        add(giltMat(lip), new THREE.CylinderGeometry(r, r, rise, 20).rotateX(Math.PI / 2), x, y, back + rise / 2);
+        add(giltMat(bead), new THREE.SphereGeometry(r * 0.45, 14, 10), x, y, back + rise);
+      }
+    }
+    for (const [mat, geos] of parts) {
+      const mesh = new THREE.Mesh(mergeGeometries(geos), mat);
+      mesh.userData.noCast = true;
+      g.add(mesh);
+      for (const geo of geos) geo.dispose();
+    }
+    bxm(g, a - 2 * f.fw, h - 2 * f.fw, 0.35, 0, f.fw, back + 0.175, M(f.linen, 0.95));
+    const { inset, w: pw, h: ph } = f.opening, pz = back + 0.38, photos = (it.photos || []).filter(k => PRINTS[k]);
+    if (!photos.length) { bxm(g, pw, ph, 0.06, 0, inset, pz, pictureMat(name, it.id + name, pw / ph)); return; }
+    for (const p of photoPanes(photos, pw, ph)) bxm(g, p.w, p.h, 0.06, p.x, inset + p.y, pz, photoMat(p.key, p.w, p.h));
   },
   textile(g, { a, dp, h, c }) {
     cyl(g, 0.5, 0.5, a + 3, 0, h - 0.5, 0, wood("#7a5a3c"), "x");
