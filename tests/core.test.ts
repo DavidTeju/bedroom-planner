@@ -1,33 +1,37 @@
 // Run with: npm test
-import { test, vi } from "vitest";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { drapePoint, pillowPoint } from "../src/cloth.js";
-import { kuwahara } from "../src/kuwahara.js";
+import { drapePoint, pillowPoint } from "../src/cloth.ts";
+import type { Point } from "../src/cloth.ts";
+import { kuwahara } from "../src/kuwahara.ts";
+import type { Item, Kind, Print, Wall } from "../src/types.ts";
+import type { GiltFrame } from "../src/core.ts";
+import { file, loadCore } from "./helpers.ts";
 
-const root = new URL("../", import.meta.url);
-const file = name => fs.readFileSync(new URL(name, root), "utf8");
 // A page is its markup plus the script that drives it; static files are served from public/.
-const PAGES = { "index.html": "src/scene.js", "plan.html": "src/plan2d.js" };
-const read = name => {
-  if (PAGES[name]) return file(name) + "\n" + file(PAGES[name]);
-  if (name === "core.js" || name === "core.css") return file("src/" + name);
+const PAGES: Record<string, string> = { "index.html": "src/scene.ts", "plan.html": "src/plan2d.ts" };
+const read = (name: string): string => {
+  const script = PAGES[name];
+  if (script) return file(name) + "\n" + file(script);
+  if (name === "core.ts" || name === "core.css") return file("src/" + name);
   return file("public/" + name);
 };
-const dir = new URL("public/", root);
-
-// A fresh copy of the shared planner module, with its own empty storage.
-async function loadCore() {
-  const store = new Map();
-  vi.stubGlobal("localStorage", { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) });
-  vi.resetModules();
-  return import("../src/core.js");
+const dir = new URL("../public/", import.meta.url);
+// The value, failing the test when it is missing.
+function must<T>(v: T | null | undefined, what = "an expected value"): T {
+  assert.ok(v !== null && v !== undefined, what + " is missing");
+  return v;
 }
+// A piece for a test: whatever it sets, on top of the fields every piece has.
+const piece = (p: Partial<Item>): Item => ({ id: "t", name: "Piece", x: 0, y: 0, w: 12, d: 12, h: 12, z: 0, color: "#bdbdbd", solid: true, headH: 0, headT: 3, headSide: "S", ...p });
+// The text a regex captured, failing the test when it did not match.
+const found = (m: RegExpMatchArray | null, group = 0): string => must(m?.[group], "a match");
 
 test("both pages load the shared core and neither keeps its own copy of the layouts", () => {
   for (const page of ["plan.html", "index.html"]) {
     const html = read(page);
-    assert.match(html, /^import \{[^}]*\} from "\.\/core\.js";$/m, page + " imports the core");
+    assert.match(html, /^import \{[^}]*\} from "\.\/core\.ts";$/m, page + " imports the core");
     assert.doesNotMatch(html, /const BUILTIN\b/, page + " has no inline layouts");
   }
 });
@@ -39,16 +43,16 @@ test("the core ships the measured room and the ready-made layouts", async () => 
 });
 
 test("every ready-made layout uses the measured 46 x 16 upholstered storage bench", async () => {
-  const { BUILTIN, layout, PRESETS } = await loadCore();
+  const { BUILTIN, PRESETS } = await loadCore();
   const benches = JSON.parse(JSON.stringify(BUILTIN.map(p => p.items.filter(i => i.kind === "ottoman").map(i => [i.w, i.d].sort((a, b) => b - a)))));
   assert.deepEqual(benches, [[[46, 16]], [[46, 16]], [[46, 16]]]);
-  assert.equal(PRESETS.find(p => p[7] === "ottoman").slice(1, 3).join("x"), "46x16");
+  assert.equal(must(PRESETS.find(p => p[7] === "ottoman")).slice(1, 3).join("x"), "46x16");
 });
 
 test("the window-facing layout has the wardrobe facing south and nothing blocked", async () => {
-  const { BUILTIN, frontDir, isBad, layout, state } = await loadCore();
+  const { BUILTIN, frontDir, isBad, state } = await loadCore();
   const out = JSON.parse((() => {
-    const plan = BUILTIN.find(p => p.name === "Bed facing the window");
+    const plan = must(BUILTIN.find(p => p.name === "Bed facing the window"));
     state.items = plan.items;
     return JSON.stringify({
       pax: plan.items.filter(i => i.kind === "wardrobe").map(frontDir),
@@ -60,9 +64,9 @@ test("the window-facing layout has the wardrobe facing south and nothing blocked
 
 test("a piece standing where a wardrobe's doors open is blocked", async () => {
   const { isBad, state } = await loadCore();
-  const blocked = rackY => (() => {
-    const pax = { id: "w", name: "PAX", kind: "wardrobe", x: 0, y: 0, w: 39.375, d: 22.875, h: 93, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" };
-    const rack = { id: "r", name: "Rack", kind: "rack", x: 0, y: rackY, w: 20.125, d: 30, h: 69, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" };
+  const blocked = (rackY: number) => (() => {
+    const pax = piece({ id: "w", name: "PAX", kind: "wardrobe", x: 0, y: 0, w: 39.375, d: 22.875, h: 93, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" });
+    const rack = piece({ id: "r", name: "Rack", kind: "rack", x: 0, y: rackY, w: 20.125, d: 30, h: 69, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" });
     state.items = [pax, rack];
     return isBad(rack);
   })();
@@ -72,13 +76,13 @@ test("a piece standing where a wardrobe's doors open is blocked", async () => {
 
 test("wardrobe doors open toward the front, one sweep per door, hinged on the outer edges", async () => {
   const { wardrobeSwings } = await loadCore();
-  const doors = JSON.parse(JSON.stringify(wardrobeSwings({ id: "w", name: "PAX", kind: "wardrobe", x: 0, y: 0, w: 40, d: 23, h: 93, z: 0, headH: 0 })));
-  assert.deepEqual(doors.map(d => [d.hx, d.hy, d.ox, d.oy, d.r]), [[0, 23, 0, 43, 20], [40, 23, 40, 43, 20]]);
+  const doors = JSON.parse(JSON.stringify(wardrobeSwings(piece({ id: "w", name: "PAX", kind: "wardrobe", x: 0, y: 0, w: 40, d: 23, h: 93, z: 0, headH: 0 }))));
+  assert.deepEqual(doors.map((d: { hx: number; hy: number; ox: number; oy: number; r: number }) => [d.hx, d.hy, d.ox, d.oy, d.r]), [[0, 23, 0, 43, 20], [40, 23, 40, 43, 20]]);
 });
 
 test("a piece against a wall faces into the room", async () => {
   const { frontDir } = await loadCore();
-  const face = it => frontDir(it);
+  const face = (it: Partial<Item>) => frontDir(piece(it));
   const base = { z: 0, h: 30, headH: 0 };
   assert.equal(face({ ...base, name: "Dresser", kind: "dresser", x: 0, y: 17, w: 18.875, d: 63 }), "E");
   assert.equal(face({ ...base, name: "Wardrobe", kind: "wardrobe", x: 0, y: 0, w: 39.375, d: 22.875 }), "S");
@@ -88,20 +92,20 @@ test("a piece against a wall faces into the room", async () => {
 
 test("a piece on the in-push faces away from it", async () => {
   const { frontDir } = await loadCore();
-  assert.equal(frontDir({ name: "Summit photos", kind: "art", x: 100, y: 48, w: 24, d: 1, h: 20, z: 50 }), "S");
-  assert.equal(frontDir({ name: "Mirror", kind: "mirror", x: 97, y: 10, w: 1, d: 24, h: 60, z: 12 }), "W");
+  assert.equal(frontDir(piece({ name: "Summit photos", kind: "art", x: 100, y: 48, w: 24, d: 1, h: 20, z: 50 })), "S");
+  assert.equal(frontDir(piece({ name: "Mirror", kind: "mirror", x: 97, y: 10, w: 1, d: 24, h: 60, z: 12 })), "W");
 });
 
 test("a bed faces away from its headboard, and a chosen facing wins over the guess", async () => {
   const { frontDir, state } = await loadCore();
-  assert.equal(frontDir(state.items[0]), "N");
-  assert.equal(frontDir({ name: "Dresser", kind: "dresser", x: 0, y: 17, w: 18.875, d: 63, h: 30, z: 0, face: "N" }), "N");
+  assert.equal(frontDir(must(state.items[0])), "N");
+  assert.equal(frontDir(piece({ name: "Dresser", kind: "dresser", x: 0, y: 17, w: 18.875, d: 63, h: 30, z: 0, face: "N" })), "N");
 });
 
 test("rotating a piece swaps its footprint and turns its headboard and chosen facing clockwise", async () => {
-  const { footprint, rotateItem, state } = await loadCore();
+  const { rotateItem, state } = await loadCore();
   const out = (() => {
-    const it = { id: "t", name: "Dresser", kind: "dresser", x: 40, y: 60, w: 36, d: 18, h: 34, z: 0, solid: true, headH: 0, headT: 3, headSide: "S", face: "N" };
+    const it = piece({ id: "t", name: "Dresser", kind: "dresser", x: 40, y: 60, w: 36, d: 18, h: 34, z: 0, solid: true, headH: 0, headT: 3, headSide: "S", face: "N" });
     state.items = [it];
     rotateItem(it);
     return JSON.stringify(it);
@@ -112,33 +116,29 @@ test("rotating a piece swaps its footprint and turns its headboard and chosen fa
 
 test("rotating a piece whose facing was guessed turns that facing too", async () => {
   const { frontDir, rotateItem, state } = await loadCore();
-  const out = (() => {
-    const it = { id: "c", name: "Armchair", kind: "chair", x: 40, y: 60, w: 32, d: 34, h: 32, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" };
-    state.items = [it];
-    const before = frontDir(it);
-    rotateItem(it);
-    return JSON.stringify([before, frontDir(it)]);
-  })();
-  const [before, after] = JSON.parse(out);
-  assert.equal(after, { N: "E", E: "S", S: "W", W: "N" }[before]);
+  const it = piece({ id: "c", name: "Armchair", kind: "chair", x: 40, y: 60, w: 32, d: 34, h: 32 });
+  state.items = [it];
+  const next: Record<Wall, Wall> = { N: "E", E: "S", S: "W", W: "N" }, before = frontDir(it);
+  rotateItem(it);
+  assert.equal(frontDir(it), next[before]);
 });
 
 test("no ready-made layout has a blocked piece", async () => {
-  const { BUILTIN, isBad, layout, state } = await loadCore();
+  const { BUILTIN, isBad, state } = await loadCore();
   const blocked = JSON.parse(JSON.stringify(BUILTIN.flatMap(p => { state.items = p.items; return p.items.filter(isBad).map(i => p.name + ": " + i.name); })));
   assert.deepEqual(blocked, []);
 });
 
 test("every piece in every ready-made layout resolves to a compass facing", async () => {
-  const { $, BUILTIN, frontDir, layout } = await loadCore();
+  const { BUILTIN, frontDir } = await loadCore();
   const faces = JSON.parse(JSON.stringify(BUILTIN.flatMap(p => p.items.map(frontDir))));
   assert.ok(faces.length > 30);
   for (const f of faces) assert.match(f, /^[NESW]$/);
 });
 
 test("every ready-made layout has Femi's green VILHATTEN wardrobe with his black LACK shoe shelf beside it", async () => {
-  const { $, BUILTIN, layout } = await loadCore();
-  const pick = kind => JSON.parse(JSON.stringify(BUILTIN.map(p => p.items.filter(i => i.kind === `${kind}`).map(i => [i.name, i.x, i.y, i.w, i.d, i.h, i.color]))));
+  const { BUILTIN } = await loadCore();
+  const pick = (kind: Kind) => JSON.parse(JSON.stringify(BUILTIN.map(p => p.items.filter(i => i.kind === kind).map(i => [i.name, i.x, i.y, i.w, i.d, i.h, i.color]))));
   const wardrobe = [["VILHATTEN wardrobe, green", 0, 0, 38.625, 22.5, 74.75, "#68705c"]];
   const shelf = [["LACK shoe shelf, black-brown", 38.625, 0, 11.75, 11, 74.75, "#2a2421"]];
   assert.deepEqual(pick("wardrobe"), [wardrobe, wardrobe, wardrobe]);
@@ -146,11 +146,11 @@ test("every ready-made layout has Femi's green VILHATTEN wardrobe with his black
 });
 
 test("the window-facing layout has a nightstand by the head of the bed on its open side", async () => {
-  const { BUILTIN, isBad, layout, n, state } = await loadCore();
+  const { BUILTIN, isBad, state } = await loadCore();
   const out = JSON.parse((() => {
-    const plan = BUILTIN.find(p => p.name === "Bed facing the window");
+    const plan = must(BUILTIN.find(p => p.name === "Bed facing the window"));
     state.items = plan.items;
-    const bed = plan.items.find(i => i.kind === "bed"), ns = plan.items.filter(i => i.kind === "nightstand");
+    const bed = must(plan.items.find(i => i.kind === "bed")), ns = plan.items.filter(i => i.kind === "nightstand");
     return JSON.stringify(ns.map(n => ({
       againstBed: n.y + n.d === bed.y,
       byHead: n.x + n.w === bed.x + bed.w,
@@ -163,10 +163,10 @@ test("the window-facing layout has a nightstand by the head of the bed on its op
 });
 
 test("the centred layout has a short chest west of the bed, under the window sill", async () => {
-  const { BUILTIN, layout, state } = await loadCore();
+  const { BUILTIN, state } = await loadCore();
   const out = JSON.parse((() => {
-    const plan = BUILTIN.find(p => p.name === "Centred bed, both sides open");
-    const bed = plan.items.find(i => i.kind === "bed"), win = state.openings.find(o => o.id === "window");
+    const plan = must(BUILTIN.find(p => p.name === "Centred bed, both sides open"));
+    const bed = must(plan.items.find(i => i.kind === "bed")), win = must(state.openings.find(o => o.id === "window"));
     return JSON.stringify(plan.items.filter(i => i.kind === "dresser" && i.x + i.w <= bed.x).map(i => ({
       onWestWall: i.x === 0,
       underWindow: i.y >= win.off && i.y + i.d <= win.off + win.w + 0.01,
@@ -177,7 +177,7 @@ test("the centred layout has a short chest west of the bed, under the window sil
 });
 
 test("every ready-made layout is lit by lamps alone: a floor lamp and nothing on the ceiling", async () => {
-  const { BUILTIN, layout, state } = await loadCore();
+  const { BUILTIN, state } = await loadCore();
   const out = JSON.parse(JSON.stringify(BUILTIN.map(p => {
     const lights = p.items.filter(i => i.kind === "lamp" || i.kind === "sconce");
     return {
@@ -193,15 +193,15 @@ test("every open side of the bed has a reading light at the head", async () => {
   const { BUILTIN, clearances, state } = await loadCore();
   const out = JSON.parse(JSON.stringify(BUILTIN.map(p => {
     state.items = p.items;
-    const bed = p.items.find(i => i.kind === "bed"), c = clearances(bed), flush = state.room.flush;
+    const bed = must(p.items.find(i => i.kind === "bed")), c = clearances(bed), flush = state.room.flush;
     const head = bed.headSide, along = head === "N" || head === "S";
-    const headLine = { N: bed.y, S: bed.y + bed.d, W: bed.x, E: bed.x + bed.w }[head];
-    const sides = along ? [["W", bed.x], ["E", bed.x + bed.w]] : [["N", bed.y], ["S", bed.y + bed.d]];
+    const headLine = ({ N: bed.y, S: bed.y + bed.d, W: bed.x, E: bed.x + bed.w } satisfies Record<Wall, number>)[head];
+    const sides: [Wall, number][] = along ? [["W", bed.x], ["E", bed.x + bed.w]] : [["N", bed.y], ["S", bed.y + bed.d]];
     const lights = p.items.filter(i => (i.kind === "lamp" || i.kind === "sconce") && i.z >= 20);
     const unlit = sides.filter(([s]) => c[s] > flush).filter(([, edge]) => !lights.some(l => {
       const cx = l.x + l.w / 2, cy = l.y + l.d / 2;
-      const corner = along ? [edge, headLine] : [headLine, edge];
-      return Math.hypot(cx - corner[0], cy - corner[1]) <= 20;
+      const [qx, qy]: [number, number] = along ? [edge, headLine] : [headLine, edge];
+      return Math.hypot(cx - qx, cy - qy) <= 20;
     })).map(([s]) => s);
     return { name: p.name, unlit };
   })));
@@ -209,7 +209,7 @@ test("every open side of the bed has a reading light at the head", async () => {
 });
 
 test("a plug-in sconce is a thin wall piece that both views draw", async () => {
-  const { BUILTIN, clearances, draw, kindOf, KINDS, layout, state } = await loadCore();
+  const { BUILTIN, clearances, kindOf, KINDS, state } = await loadCore();
   assert.equal(KINDS.sconce, "Wall sconce");
   assert.equal(kindOf({ name: "Plug-in swing-arm sconce" }), "sconce");
   const sconces = JSON.parse(JSON.stringify(BUILTIN.flatMap(p => { state.items = p.items; return p.items.filter(i => i.kind === "sconce").map(i => {
@@ -243,7 +243,7 @@ test("a solid piece between a lamp and a point shades it", async () => {
 });
 
 test("the light map reports each layout's reading spots, average and darkest tenth", async () => {
-  const { BUILTIN, layout, lightReport } = await loadCore();
+  const { BUILTIN, lightReport } = await loadCore();
   const out = JSON.parse(JSON.stringify(BUILTIN.map(p => { const r = lightReport(p.items); return { spots: r.reading.length, avg: r.avg > 0, p10: r.p10 >= 0, cells: r.map.vals.length > 0 }; })));
   assert.deepEqual(out, [{ spots: 1, avg: true, p10: true, cells: true }, { spots: 1, avg: true, p10: true, cells: true }, { spots: 2, avg: true, p10: true, cells: true }]);
 });
@@ -262,7 +262,7 @@ test("the 2D plan can overlay the lamps-only light map", () => {
 });
 
 test("the 2D plan colours the light map from the core, and the 3D view has no light map", async () => {
-  const { lightReport, luxColor } = await loadCore();
+  const { luxColor } = await loadCore();
   assert.equal(luxColor(10), "#1f2a44");
   assert.equal(luxColor(1000), "#fff6d6");
   assert.doesNotMatch(read("plan.html"), /function luxColor/, "the 2D plan uses the shared colours");
@@ -271,7 +271,7 @@ test("the 2D plan colours the light map from the core, and the 3D view has no li
 
 test("a white bulb's colour temperature turns into the right RGB", async () => {
   const { kelvinRGB } = await loadCore();
-  const near = (got, want) => got.every((v, i) => Math.abs(v - want[i]) <= 3);
+  const near = (got: number[], want: number[]) => got.every((v, i) => Math.abs(v - (want[i] ?? NaN)) <= 3);
   const warm = JSON.parse(JSON.stringify(kelvinRGB(2700))), cool = JSON.parse(JSON.stringify(kelvinRGB(6500)));
   assert.ok(near(warm, [255, 167, 87]), "2700K: " + warm);
   assert.ok(near(cool, [255, 254, 250]), "6500K: " + cool);
@@ -285,24 +285,24 @@ test("lamps-only mode lets the bulbs be any white temperature or any colour", ()
 
 test("every lamp that takes a bulb gets Femi's 1100 lm Tapo L535E", async () => {
   const { BUILTIN, lightSpec } = await loadCore();
-  const lm = JSON.parse(JSON.stringify(Object.fromEntries(BUILTIN[1].items.filter(i => i.kind === "lamp" || i.kind === "sconce").map(i => [i.name, lightSpec(i).lm]))));
+  const lm = JSON.parse(JSON.stringify(Object.fromEntries(must(BUILTIN[1]).items.filter(i => i.kind === "lamp" || i.kind === "sconce").map(i => [i.name, lightSpec(i).lm]))));
   assert.deepEqual(lm, { "Floor lamp": 1100, "Plug-in swing-arm sconce": 1100, "BÖJA table lamp (yours)": 1100, "Mika cactus lamp (yours)": 1100, "PELARBOJ glow lamp (yours)": 25 });
 });
 
 const LINK_SLUGS = { window: "Bed facing the window", corner: "Corner bed, maximum storage", centred: "Centred bed, both sides open" };
 
 test("each ready-made layout has a link slug that opens it", async () => {
-  const { $, BUILTIN, layout, linkedPlan, linkOf } = await loadCore();
+  const { BUILTIN, linkedPlan, linkOf } = await loadCore();
   for (const [slug, name] of Object.entries(LINK_SLUGS)) {
     assert.equal(linkedPlan(`?layout=${slug}`)?.name, name, slug);
-    assert.equal(linkOf(BUILTIN.find(p => p.name === name)), "/" + slug + "/");
+    assert.equal(linkOf(must(BUILTIN.find(p => p.name === name))), "/" + slug + "/");
   }
   assert.equal(linkedPlan("?layout=nope"), null);
   assert.equal(linkedPlan(""), null);
 });
 
 // Width and height from a PNG's IHDR chunk.
-const pngSize = buf => [buf.readUInt32BE(16), buf.readUInt32BE(20)];
+const pngSize = (buf: Buffer) => [buf.readUInt32BE(16), buf.readUInt32BE(20)];
 
 test("each layout link has its own preview card and image, and sends people to that layout", () => {
   for (const [slug, name] of Object.entries(LINK_SLUGS)) {
@@ -319,10 +319,10 @@ test("each layout link has its own preview card and image, and sends people to t
 
 test("the 3D toolbar has a view picker, a show menu and a simulate-lights switch", () => {
   const html = read("index.html");
-  const views = [...html.match(/<select id="viewSel"[^>]*>([\s\S]*?)<\/select>/)[1].matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
+  const views = [...found(html.match(/<select id="viewSel"[^>]*>([\s\S]*?)<\/select>/), 1).matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
   assert.deepEqual(views, ["3d", "top", "N", "E", "S", "W", "inside"]);
   assert.doesNotMatch(html, /data-view=/);
-  const menu = html.match(/<details id="showMenu"[\s\S]*?<\/details>/)[0];
+  const menu = found(html.match(/<details id="showMenu"[\s\S]*?<\/details>/));
   assert.deepEqual([...menu.matchAll(/data-toggle="(\w+)"/g)].map(m => m[1]), ["grid", "swings", "names"]);
   assert.match(html, /<button data-toggle="lamps"><i class="glow"><\/i>Simulate lights<\/button>/);
   assert.doesNotMatch(html, /Lamps only/);
@@ -332,23 +332,23 @@ test("the simulate-lights switch keeps its bulb controls beside it without stret
   const html = read("index.html");
   // A flex row stretches every item to the tallest one unless told otherwise.
   assert.match(html, /\.bar \{[^}]*align-items: center/);
-  const group = html.match(/<span class="lights">[\s\S]*?<\/span><\/span>/)[0];
+  const group = found(html.match(/<span class="lights">[\s\S]*?<\/span><\/span>/));
   assert.match(group, /data-toggle="lamps"/);
   assert.match(group, /id="bulbCtl"/);
   assert.deepEqual([...group.matchAll(/data-bulb-mode="(\w+)"/g)].map(m => m[1]), ["white", "colour"]);
 });
 
 test("each plan row stacks its note under the name and ends in a same-size copy-link icon", () => {
-  const core = read("core.js"), css = read("core.css");
+  const core = read("core.ts"), css = read("core.css");
   assert.match(core, /<span class="pl"><span>\$\{esc\(p\.name\)\}<\/span><small>\$\{note\}<\/small><\/span>/);
   assert.match(core, /<button class="link" data-copy="[^"]*" title="Copy a link that opens this layout" aria-label="Copy link"><svg/);
   // a click lands on the icon inside the button, so the handler must look up from the target
-  assert.match(core, /e\.target\.closest\("\[data-copy\]"\)/);
+  assert.match(core, /\.closest(<\w+>)?\("\[data-copy\]"\)/);
   assert.match(css, /ul\.plans \.link \{[^}]*width: 28px/);
 });
 
 test("every sidebar section but Selected collapses, and the room section starts collapsed", async () => {
-  const { plans, save, SIDEBAR } = await loadCore();
+  const { SIDEBAR } = await loadCore();
   const side = SIDEBAR;
   assert.deepEqual([...side.matchAll(/<div class="card"[^>]*>/g)].map(m => m[0]), ['<div class="card" id="selCard">']);
   const sections = [...side.matchAll(/<details class="card" data-section="(\w+)"( open)?>\s*<summary>/g)].map(m => [m[1], !!m[2]]);
@@ -357,10 +357,10 @@ test("every sidebar section but Selected collapses, and the room section starts 
 });
 
 test("the snowboard, its boots, a ladder shelf and a bean bag are pieces both views draw", async () => {
-  const { $, draw, kindOf, KINDS, PRESETS } = await loadCore();
+  const { kindOf, KINDS, PRESETS } = await loadCore();
   const kinds = { board: "Snowboard wall rack", boots: "Snowboard boots on a tray", ladder: "Ladder shelf", beanbag: "Bean bag" };
   for (const [kind, name] of Object.entries(kinds)) {
-    assert.ok(KINDS[kind], kind + " is a kind");
+    assert.ok(KINDS[kind as Kind], kind + " is a kind");
     assert.equal(PRESETS.filter(p => p[7] === kind).map(p => p[0]).join(), name, kind + " has a preset");
     assert.equal(kindOf({ name }), kind, name + " is recognised by name");
     assert.match(read("index.html"), new RegExp(`^\\s+${kind}\\(g,`, "m"), "the 3D view has a " + kind + " model");
@@ -369,12 +369,12 @@ test("the snowboard, its boots, a ladder shelf and a bean bag are pieces both vi
 });
 
 test("every ready-made layout hangs the snowboard upright on a wall over its boots", async () => {
-  const { BUILTIN, clearances, layout, overlap, state } = await loadCore();
+  const { BUILTIN, clearances, overlap, state } = await loadCore();
   const out = JSON.parse(JSON.stringify(BUILTIN.map(p => {
     state.items = p.items;
     const board = p.items.filter(i => i.kind === "board"), boots = p.items.filter(i => i.kind === "boots");
     if (board.length !== 1 || boots.length !== 1) return { name: p.name, board: board.length, boots: boots.length };
-    const b = board[0], t = boots[0], c = clearances(b);
+    const b = must(board[0]), t = must(boots[0]), c = clearances(b);
     return { name: p.name, onWall: Math.min(c.N, c.S, c.E, c.W) <= state.room.flush, upright: b.h > 4 * Math.max(b.w, b.d),
       clearsBoots: b.z >= t.z + t.h, over: overlap(b, t), bootsOnFloor: t.z === 0 };
   })));
@@ -382,14 +382,14 @@ test("every ready-made layout hangs the snowboard upright on a wall over its boo
 });
 
 test("the window layout has a ladder shelf on the in-push instead of an open clothes rack", async () => {
-  const { BUILTIN, frontDir, layout, state } = await loadCore();
+  const { BUILTIN, frontDir, state } = await loadCore();
   const out = JSON.parse((() => {
-    const plan = BUILTIN.find(p => p.name === "Bed facing the window");
+    const plan = must(BUILTIN.find(p => p.name === "Bed facing the window"));
     state.items = plan.items;
     return JSON.stringify({
       racks: plan.items.filter(i => i.kind === "rack").length,
       ladder: plan.items.filter(i => i.kind === "ladder").map(i => [i.x, i.y, i.w, i.d, i.h, frontDir(i)]),
-      count: plan.items.length, mentionsRack: /RIGGA|rack/.test(plan.why)
+      count: plan.items.length, mentionsRack: /RIGGA|rack/.test(plan.why ?? "")
     });
   })());
   assert.deepEqual(out, { racks: 0, ladder: [[101, 48, 24, 16, 72, "S"]], count: 22, mentionsRack: false });
@@ -397,7 +397,7 @@ test("the window layout has a ladder shelf on the in-push instead of an open clo
 
 test("the bean bag is one sagging fabric sack, not stacked spheres", () => {
   const html = read("index.html");
-  const model = html.match(/^\s+beanbag\(g,[\s\S]*?^\s{2}\},$/m)[0];
+  const model = found(html.match(/^\s+beanbag\(g,[\s\S]*?^\s{2}\},$/m));
   assert.match(model, /sackGeometry\(/, "built from one deformed sack");
   assert.match(model, /fabricMat\(/, "covered in a woven fabric");
   assert.doesNotMatch(model, /SphereGeometry/);
@@ -407,53 +407,53 @@ test("the bean bag is one sagging fabric sack, not stacked spheres", () => {
 test("Print waits for the page to get ready before opening the browser's print dialog", async () => {
   const { hooks } = await loadCore();
   assert.equal(typeof hooks.onPrint, "function", "pages can hook printing");
-  assert.match(read("core.js"), /\$\("#print"\)\.addEventListener\("click", async \(\) => \{ await hooks\.onPrint\(\); window\.print\(\); \}\)/);
+  assert.match(read("core.ts"), /\$\("#print"\)\.addEventListener\("click", async \(\) => \{ await hooks\.onPrint\(\); window\.print\(\); \}\)/);
 });
 
 test("the 3D view prints a still picture, since the canvas keeps its screen size and is not redrawn for paper", () => {
   const html = read("index.html");
   assert.match(html, /hooks\.onPrint = takePrintShot/);
-  const shot = html.match(/async function takePrintShot\(\) \{[\s\S]*?\n\}/)[0];
+  const shot = found(html.match(/async function takePrintShot\(\) \{[\s\S]*?\n\}/));
   assert.match(shot, /renderer\.render\(scene, camera\)/, "draws a fresh frame first");
   assert.match(shot, /toDataURL\(/);
   assert.match(shot, /\.decode\(\)/, "waits for the picture before printing");
   assert.match(html, /addEventListener\("beforeprint"/, "Ctrl/Cmd+P gets the picture too");
   assert.match(html, /addEventListener\("afterprint"/);
-  const print = html.match(/@media print \{[^\n]*\}/)[0];
+  const print = found(html.match(/@media print \{[^\n]*\}/));
   assert.match(print, /#stage canvas, #labels \{ display: none !important; \}/);
   assert.match(print, /#printShot \{ display: block;/);
   assert.match(html, /#printShot \{ display: none; \}/);
 });
 
 test("round and soft pieces and rugs can turn to any angle; hard furniture cannot", async () => {
-  const { canTurn, KINDS } = await loadCore();
-  const turnable = JSON.parse(JSON.stringify(Object.keys(KINDS).filter(k => canTurn({ kind: k }))));
+  const { canTurn, keys, KINDS } = await loadCore();
+  const turnable = JSON.parse(JSON.stringify(keys(KINDS).filter(k => canTurn({ kind: k }))));
   assert.deepEqual(turnable.sort(), ["beanbag", "lamp", "plant", "rug"]);
 });
 
 test("a turned piece takes up the wall-aligned box that holds it, centred where it was", async () => {
   const { footprint } = await loadCore();
-  const fp = it => JSON.parse(JSON.stringify(footprint(it)));
-  const round = v => Math.round(v * 100) / 100;
-  const box = f => [f.x, f.y, f.w, f.d].map(round);
-  const bag = { name: "Bean bag", kind: "beanbag", x: 40, y: 50, w: 36, d: 34, h: 26, z: 0 };
+  const fp = (it: Partial<Item>) => JSON.parse(JSON.stringify(footprint(piece(it))));
+  const round = (v: number) => Math.round(v * 100) / 100;
+  const box = (f: { x: number; y: number; w: number; d: number }) => [f.x, f.y, f.w, f.d].map(round);
+  const bag: Partial<Item> = { name: "Bean bag", kind: "beanbag", x: 40, y: 50, w: 36, d: 34, h: 26, z: 0 };
   assert.deepEqual(box(fp(bag)), [40, 50, 36, 34], "no turn, no change");
   // an oval 36 x 34 turned 45 degrees spans sqrt((18^2 + 17^2) / 2) * 2 each way
   const half = Math.sqrt((18 ** 2 + 17 ** 2) / 2);
   assert.deepEqual(box(fp({ ...bag, turn: 45 })), [58 - half, 67 - half, 2 * half, 2 * half].map(round));
   // a rectangle's corners stick out: 96 x 60 at 30 degrees
-  const rug = { name: "Rug", kind: "rug", x: 0, y: 0, w: 96, d: 60, h: 0.5, z: 0, turn: 30 };
+  const rug: Partial<Item> = { name: "Rug", kind: "rug", x: 0, y: 0, w: 96, d: 60, h: 0.5, z: 0, turn: 30 };
   const rw = 96 * Math.cos(Math.PI / 6) + 60 * 0.5, rd = 96 * 0.5 + 60 * Math.cos(Math.PI / 6);
   assert.deepEqual(box(fp(rug)), [48 - rw / 2, 30 - rd / 2, rw, rd].map(round));
   assert.deepEqual(box(fp({ name: "Dresser", kind: "dresser", x: 0, y: 0, w: 36, d: 18, h: 34, z: 0, turn: 30 })), [0, 0, 36, 18], "a dresser ignores turn");
 });
 
 test("the rules use a turned piece's real footprint", async () => {
-  const { clearances, footprint, isBad, outside, state } = await loadCore();
+  const { clearances, isBad, outside, state } = await loadCore();
   const out = JSON.parse((() => {
-    const rug = { id: "r", name: "Rug", kind: "rug", x: 0, y: 60, w: 96, d: 60, h: 0.5, z: 0, solid: false, headH: 0, headT: 3, headSide: "S" };
-    const plant = { id: "c", name: "Plant", kind: "plant", x: 0, y: 130, w: 30, d: 10, h: 40, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" };
-    const box = { id: "b", name: "Box", kind: "other", x: 26, y: 120, w: 20, d: 20, h: 20, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" };
+    const rug = piece({ id: "r", name: "Rug", kind: "rug", x: 0, y: 60, w: 96, d: 60, h: 0.5, z: 0, solid: false, headH: 0, headT: 3, headSide: "S" });
+    const plant = piece({ id: "c", name: "Plant", kind: "plant", x: 0, y: 130, w: 30, d: 10, h: 40, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" });
+    const box = piece({ id: "b", name: "Box", kind: "other", x: 26, y: 120, w: 20, d: 20, h: 20, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" });
     state.items = [rug, plant, box];
     const flat = { rugOut: outside(rug), plantHits: isBad(plant) };
     rug.turn = 40; plant.turn = 90;
@@ -464,7 +464,7 @@ test("the rules use a turned piece's real footprint", async () => {
 });
 
 test("the Selected panel offers a turn angle only for pieces that can turn, and both views draw it", () => {
-  const core = read("core.js");
+  const core = read("core.ts");
   assert.match(core, /canTurn\(it\) \? `<div class="row two">\$\{num\("Turn \(degrees clockwise\)", "turn", it\.turn \|\| 0/);
   assert.match(core, /Shift\+R turns 15°/);
   assert.match(read("index.html"), /b\.group\.rotation\.y = FACE_TURN\[face\] - turnOf\(it\) \* Math\.PI \/ 180/);
@@ -472,8 +472,8 @@ test("the Selected panel offers a turn angle only for pieces that can turn, and 
 });
 
 test("the window layout uses Femi's own wood nightstand with the rattan drawer", async () => {
-  const { BUILTIN, layout } = await loadCore();
-  const ns = JSON.parse(JSON.stringify(BUILTIN.find(p => p.name === "Bed facing the window").items.filter(i => i.kind === "nightstand").map(i => [i.name, i.w, i.d, i.h, i.color])));
+  const { BUILTIN } = await loadCore();
+  const ns = JSON.parse(JSON.stringify(must(BUILTIN.find(p => p.name === "Bed facing the window")).items.filter(i => i.kind === "nightstand").map(i => [i.name, i.w, i.d, i.h, i.color])));
   assert.deepEqual(ns, [["Your nightstand, rattan drawer", 17, 17, 22, "#8b4a24"]]);
 });
 
@@ -486,7 +486,7 @@ test("the bed's colour is the sage comforter, and BÖJA is IKEA's 8 in by 16 in 
 
 test("the 3D view models the real pieces: painted wardrobe, LACK shelf, upholstered bed, quilted comforter, rattan drawer, woven egg lamp", () => {
   const html = read("index.html");
-  const model = name => html.match(new RegExp(`^\\s{2}${name}\\(g, (\\{|x\\))[\\s\\S]*?^\\s{2}\\},?$`, "m"))[0];
+  const model = (name: string) => found(html.match(new RegExp(`^\\s{2}${name}\\(g, (\\{|x\\))[\\s\\S]*?^\\s{2}\\},?$`, "m")));
   assert.match(model("wardrobe"), /vilhatten/, "a VILHATTEN: full door, short door over two drawers, white knobs");
   assert.match(model("shoe"), /lack/, "a LACK: back and side panel with cantilevered shelves");
   assert.match(model("bed"), /headboardMat\(/, "channel-tufted grey headboard");
@@ -511,7 +511,7 @@ test("the room wears the Clay and indigo palette: cream walls stay, accents go o
 
 test("the 3D bed wears linen sheets and pillows, sage shams, an indigo pillow and a terracotta throw", () => {
   const html = read("index.html");
-  const bed = html.match(/^\s{2}bed\(g, \{[\s\S]*?^\s{2}\},$/m)[0];
+  const bed = found(html.match(/^\s{2}bed\(g, \{[\s\S]*?^\s{2}\},$/m));
   for (const part of ["THEME.sheets", "THEME.throw", "THEME.accent"]) assert.ok(bed.includes(part), "bed uses " + part);
   assert.match(bed, /shams/);
   assert.match(html, /WALL = M\(THEME\.walls/);
@@ -522,7 +522,7 @@ test("a pillow is stuffed: thin at the seam, full in the middle, ears at the cor
   const o = { w: 26, len: 20, t: 6, seed: 1 };
   const [, top] = pillowPoint(0, 0, 1, o), [, bottom] = pillowPoint(0, 0, -1, o);
   assert.ok(top - bottom > 5 && top - bottom < 6.5, "about the stuffed thickness in the middle");
-  for (const [u, v] of [[1, 0], [-1, 0.3], [0.2, 1], [0.5, -1]]) {
+  for (const [u, v] of [[1, 0], [-1, 0.3], [0.2, 1], [0.5, -1]] as [number, number][]) {
     const a = pillowPoint(u, v, 1, o), b = pillowPoint(u, v, -1, o);
     assert.ok(Math.abs(a[1] - b[1]) < 1e-9 && a[0] === b[0] && a[2] === b[2], `top and bottom meet at the seam (${u}, ${v})`);
   }
@@ -537,7 +537,7 @@ test("the throw lies on the bed, rolls over the edges and hangs outside the fram
   const bed = { x0: -31, x1: 31, z1: 40, top: 25, r: 2, floor: 0, seed: 3, folds: 1 };
   assert.deepEqual(Array.from(drapePoint(0, 20, bed), v => +v.toFixed(6)), [0, 25, 20], "flat on top in the middle");
   // signed distance to the bed: a box with its top edges and corners rounded to r, negative inside
-  const into = ([x, y, z]) => {
+  const into = ([x, y, z]: Point) => {
     const qx = Math.max(bed.x0 + bed.r - x, x - (bed.x1 - bed.r)), qy = y - (bed.top - bed.r), qz = z - (bed.z1 - bed.r);
     return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - bed.r;
   };
@@ -556,7 +556,7 @@ test("the throw lies on the bed, rolls over the edges and hangs outside the fram
 
 test("the 3D bed builds its pillows and throw from shaped cloth, not boxes", () => {
   const html = read("index.html");
-  const bed = html.match(/^\s{2}bed\(g, \{[\s\S]*?^\s{2}\},$/m)[0];
+  const bed = found(html.match(/^\s{2}bed\(g, \{[\s\S]*?^\s{2}\},$/m));
   assert.match(bed, /pillow\(g,[\s\S]*pillow\(g,[\s\S]*pillow\(g,/, "sleeping pillows, shams and the accent pillow are pillows");
   assert.match(bed, /throwBlanket\(g,/);
   assert.doesNotMatch(bed, /THEME\.throw\)[^;]*;\s*bxm|cloth, 0\.4\)/, "no box slabs for the throw");
@@ -566,9 +566,9 @@ test("the 3D bed builds its pillows and throw from shaped cloth, not boxes", () 
 
 test("the throw only hangs where there is room: never into a wall, a lamp or anything else beside the foot of the bed", async () => {
   const { BUILTIN, frontDir, state, throwRoom } = await loadCore();
-  const room = name => JSON.parse((() => {
-    state.items = structuredClone(BUILTIN.find(p => p.name === name).items);
-    return JSON.stringify(throwRoom(state.items.find(i => i.kind === "bed")));
+  const room = (name: string) => JSON.parse((() => {
+    state.items = structuredClone(must(BUILTIN.find(p => p.name === name)).items);
+    return JSON.stringify(throwRoom(must(state.items.find(i => i.kind === "bed"))));
   })());
   // corner: the bed faces N with its east side on the east wall, which is the model's left
   assert.equal(room("Corner bed, maximum storage").left, 0);
@@ -582,13 +582,14 @@ test("the throw only hangs where there is room: never into a wall, a lamp or any
   assert.ok(centred.left > 6 && centred.right > 6, "the centred bed has both sides open");
   // a tall piece pushed against the foot end of one side takes that side's room away
   const blocked = JSON.parse((() => {
-    const bed = state.items.find(i => i.kind === "bed");
-    state.items.push({ id: "probe", name: "probe", kind: "other", x: bed.x + bed.w + 2, y: bed.y + 4, w: 10, d: 10, h: 60, z: 0, solid: true, headH: 0 });
+    const bed = must(state.items.find(i => i.kind === "bed"));
+    state.items.push(piece({ id: "probe", name: "probe", kind: "other", x: bed.x + bed.w + 2, y: bed.y + 4, w: 10, d: 10, h: 60, z: 0, solid: true, headH: 0 }));
     const out = throwRoom(bed);
     state.items.pop();
     return JSON.stringify(out);
   })());
-  assert.equal(blocked[{ N: "left", S: "right" }[frontDir(state.items.find(i => i.kind === "bed"))]], 2);
+  const side = must(({ N: "left", S: "right" } as Partial<Record<Wall, string>>)[frontDir(must(state.items.find(i => i.kind === "bed")))]);
+  assert.equal(blocked[side], 2);
 });
 
 test("cloth past the foot of the bed rests on a bench there instead of passing through it, without tearing", () => {
@@ -610,15 +611,15 @@ test("cloth past the foot of the bed rests on a bench there instead of passing t
 });
 
 test("Femi's own photographs hang in the ready-made layouts, every pick at least once", async () => {
-  const { $, BUILTIN, PRINTS } = await loadCore();
-  const prints = JSON.parse(JSON.stringify(PRINTS));
+  const { BUILTIN, PRINTS } = await loadCore();
+  const prints: Record<string, Print> = JSON.parse(JSON.stringify(PRINTS));
   assert.equal(Object.keys(prints).length, 19, "13 from round one, 6 from round two");
   for (const [key, p] of Object.entries(prints)) {
     assert.match(p.file, /^prints\/[a-z0-9-]+\.jpg$/, key);
     assert.ok(fs.existsSync(new URL(p.file, dir)), key + " has its picture");
     assert.ok(p.title && p.place && /^\d{4}-\d{2}$/.test(p.taken) && p.w > 0 && p.h > 0, key + " is described");
   }
-  const art = JSON.parse(JSON.stringify(BUILTIN.flatMap(p => p.items.filter(i => i.kind === "art"))));
+  const art: Item[] = JSON.parse(JSON.stringify(BUILTIN.flatMap(p => p.items.filter(i => i.kind === "art"))));
   const used = new Set(art.flatMap(i => i.photos || []));
   assert.deepEqual([...used].sort(), Object.keys(prints).sort(), "every pick hangs somewhere");
   assert.deepEqual([...new Set(art.filter(i => !(i.photos || []).length).map(i => i.name))], ["Framed topo map"], "no made-up pictures left");
@@ -634,8 +635,8 @@ test("the print files carry no location or camera details", () => {
 });
 
 test("both views show the photo in a frame, and the Selected panel can swap it", () => {
-  const html = read("index.html"), plan = read("plan.html"), core = read("core.js");
-  assert.match(html.match(/^\s{2}art\(g, \{[\s\S]*?^\s{2}\},$/m)[0], /photoMat\(/, "3D frames use the photo as their picture");
+  const html = read("index.html"), plan = read("plan.html"), core = read("core.ts");
+  assert.match(found(html.match(/^\s{2}art\(g, \{[\s\S]*?^\s{2}\},$/m)), /photoMat\(/, "3D frames use the photo as their picture");
   assert.match(plan, /<image [^>]*href="\$\{PRINTS\[/, "the wall views draw the photo");
   assert.match(core, /data-k="photo"/, "a photo picker for art pieces");
 });
@@ -647,20 +648,20 @@ test("in 3D the photos are painted: smooth flat strokes with sharp edges, blende
   assert.match(html, /^const PRINT_PIXELS_PER_INCH = \d+(\.\d+)?;/m, "one level of detail for every frame");
   assert.match(mat[0], /kuwahara\(/, "painted with the brush-stroke filter");
   assert.doesNotMatch(mat[0], /NearestFilter|PRINT_LEVELS/, "no square blocks or banded colour");
-  assert.match(html.match(/^\s{2}art\(g, \{[\s\S]*?^\s{2}\},$/m)[0], /photoMat\(p\.key, p\.w, p\.h\)/, "each pane is painted at its real size");
+  assert.match(found(html.match(/^\s{2}art\(g, \{[\s\S]*?^\s{2}\},$/m)), /photoMat\(p\.key, p\.w, p\.h\)/, "each pane is painted at its real size");
 });
 
 test("the brush-stroke filter flattens noise, keeps edges sharp and never wraps round the image", () => {
   const w = 24, h = 12;
-  const img = (f) => { const d = new Uint8ClampedArray(w * h * 4); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const v = f(x, y), i = (y * w + x) * 4; d.set([v, v, v, 255], i); } return d; };
-  const at = (d, x, y) => d[(y * w + x) * 4];
+  const img = (f: (x: number, y: number) => number) => { const d = new Uint8ClampedArray(w * h * 4); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const v = f(x, y), i = (y * w + x) * 4; d.set([v, v, v, 255], i); } return d; };
+  const at = (d: Uint8ClampedArray, x: number, y: number): number => d[(y * w + x) * 4] ?? NaN;
   // a hard edge stays hard: no grey ramp across it
   const edge = kuwahara(img(x => (x < 12 ? 20 : 220)), w, h, 4);
   for (let y = 0; y < h; y++) { assert.equal(at(edge, 11, y), 20); assert.equal(at(edge, 12, y), 220); }
   // speckle on a flat area is smoothed away
-  const r = (x, y) => ((x * 7919 + y * 104729) % 41) - 20;
+  const r = (x: number, y: number) => ((x * 7919 + y * 104729) % 41) - 20;
   const noisy = img((x, y) => 128 + r(x, y)), out = kuwahara(noisy, w, h, 4);
-  const spread = d => { let lo = 255, hi = 0; for (let y = 3; y < h - 3; y++) for (let x = 3; x < w - 3; x++) { lo = Math.min(lo, at(d, x, y)); hi = Math.max(hi, at(d, x, y)); } return hi - lo; };
+  const spread = (d: Uint8ClampedArray) => { let lo = 255, hi = 0; for (let y = 3; y < h - 3; y++) for (let x = 3; x < w - 3; x++) { lo = Math.min(lo, at(d, x, y)); hi = Math.max(hi, at(d, x, y)); } return hi - lo; };
   assert.ok(spread(out) < spread(noisy) / 2, `noise ${spread(noisy)} -> ${spread(out)}`);
   // the left edge never borrows from the right: a bright right column cannot leak to x = 0
   const side = kuwahara(img(x => (x === w - 1 ? 255 : 30)), w, h, 4);
@@ -674,21 +675,21 @@ test("every inline script on both pages parses", async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "planner-syntax-"));
   try {
     for (const page of ["index.html", "plan.html"]) {
-      const scripts = [...file(page).matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/g)].filter(([, attrs]) => !/importmap|json/.test(attrs));
+      const scripts = [...file(page).matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/g)].filter(([, attrs]) => !/importmap|json/.test(attrs ?? ""));
       scripts.forEach(([, attrs, body], i) => {
-        const file = path.join(tmp, `${page}-${i}.${/module/.test(attrs) ? "mjs" : "cjs"}`);
-        fs.writeFileSync(file, body);
+        const file = path.join(tmp, `${page}-${i}.${/module/.test(attrs ?? "") ? "mjs" : "cjs"}`);
+        fs.writeFileSync(file, body ?? "");
         try { execFileSync(process.execPath, ["--check", file], { stdio: "pipe" }); }
-        catch (e) { assert.fail(`${page} script ${i} does not parse:\n${String(e.stderr).split("\n").slice(0, 6).join("\n")}`); }
+        catch (e) { assert.fail(`${page} script ${i} does not parse:\n${String((e as { stderr?: unknown }).stderr).split("\n").slice(0, 6).join("\n")}`); }
       });
     }
   } finally { fs.rmSync(tmp, { recursive: true }); }
 });
 
 test("every frame is an ornate gilt moulding: stepped bands, a carved band, a linen liner, then the picture", async () => {
-  const { $, BUILTIN, giltFrame } = await loadCore();
-  const frame = (w, h) => JSON.parse(JSON.stringify(giltFrame(w, h)));
-  for (const [w, h] of [[48, 40], [40, 27], [24, 18], [14, 21], [18, 24]]) {
+  const { BUILTIN, giltFrame } = await loadCore();
+  const frame = (w: number, h: number): GiltFrame => JSON.parse(JSON.stringify(giltFrame(w, h)));
+  for (const [w, h] of [[48, 40], [40, 27], [24, 18], [14, 21], [18, 24]] as [number, number][]) {
     const f = frame(w, h);
     let edge = 0;
     for (const b of f.bands) {
@@ -705,8 +706,8 @@ test("every frame is an ornate gilt moulding: stepped bands, a carved band, a li
   }
   assert.ok(frame(48, 40).fw > frame(14, 21).fw, "bigger pieces get a wider moulding");
   assert.ok(frame(48, 40).fw <= 4.5 && frame(10, 10).fw >= 1.25, "the moulding width is clamped");
-  const big = frame(48, 40), carved = big.bands.find(b => b.tone === "carved");
-  assert.ok(Math.abs(big.corners.d - (carved.inset + carved.width / 2)) < 1e-9 && big.corners.r > 0 && big.corners.r < carved.width, "large frames carry rosettes centred on the carved band");
+  const big = frame(48, 40), carved = must(big.bands.find(b => b.tone === "carved")), corners = must(big.corners);
+  assert.ok(Math.abs(corners.d - (carved.inset + carved.width / 2)) < 1e-9 && corners.r > 0 && corners.r < carved.width, "large frames carry rosettes centred on the carved band");
   assert.equal(frame(14, 14).corners, null, "small frames go without");
   const art = JSON.parse(JSON.stringify(BUILTIN.flatMap(p => p.items.filter(i => i.kind === "art").map(i => [i.w > i.d ? i.w : i.d, i.h]))));
   for (const [w, h] of art) { const f = frame(w, h); assert.ok(f.opening.w > 0 && f.opening.h > 0, `${w}x${h} keeps a picture`); }
@@ -714,7 +715,7 @@ test("every frame is an ornate gilt moulding: stepped bands, a carved band, a li
 
 test("both views draw the gilt moulding from the shared profile", () => {
   const html = read("index.html"), plan = read("plan.html");
-  const art3d = html.match(/^\s{2}art\(g, \{[\s\S]*?^\s{2}\},$/m)[0];
+  const art3d = found(html.match(/^\s{2}art\(g, \{[\s\S]*?^\s{2}\},$/m));
   assert.match(art3d, /giltFrame\(/, "the 3D frame follows the shared profile");
   assert.match(art3d, /carvedMat\(/, "the 3D carved band is carved");
   assert.match(art3d, /mergeGeometries\(/, "a frame's parts merge into one mesh per material");

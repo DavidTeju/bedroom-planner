@@ -1,16 +1,17 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { stepDoor } from "../src/doors.js";
+import { stepDoor } from "../src/doors.ts";
+import type { DoorSwing } from "../src/doors.ts";
 
 test("a shut door stays shut when the first frame's timestamp is earlier than the page's clock", () => {
   // requestAnimationFrame stamps a frame with when it began, which can be before the module read performance.now()
-  const door = { t: 0, want: 0 };
+  const door: DoorSwing = { t: 0, want: 0 };
   stepDoor(door, -800);
   assert.equal(door.t, 0);
 });
 
 test("a door opens and closes over about half a second, and a long pause does not jump it", () => {
-  const door = { t: 0, want: 1 };
+  const door: DoorSwing = { t: 0, want: 1 };
   for (let i = 0; i < 5; i++) stepDoor(door, 55);
   assert.ok(Math.abs(door.t - 0.5) < 1e-9, "half open after 275 ms: " + door.t);
   stepDoor(door, 5000);

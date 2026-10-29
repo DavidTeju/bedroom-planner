@@ -3,7 +3,9 @@
 // side is 1 for the top and -1 for the underside. The two halves meet at a seam round the edge, the
 // stuffing pulls the middle of each edge in so the corners stick out as ears, the underside settles
 // flatter than the top, creases fan in from each corner, and `dent` sinks the middle where a head goes.
-export function pillowPoint(u, v, side, o) {
+export interface PillowShape { w: number; len: number; t: number; seed?: number; dent?: number }
+export type Point = [x: number, y: number, z: number];
+export function pillowPoint(u: number, v: number, side: number, o: PillowShape): Point {
   const { w, len, t, seed = 0, dent = 0 } = o;
   const puff = Math.pow(Math.max(0, (1 - u * u) * (1 - v * v)), 0.55), inset = 0.22 * t;
   const x = u * (w / 2 - inset * (1 - v * v)), z = v * (len / 2 - inset * (1 - u * u));
@@ -19,13 +21,16 @@ export function pillowPoint(u, v, side, o) {
 // over it and hangs straight down, past a corner it falls in a cone so the corner hangs lowest, it
 // gathers into folds the further it hangs, and any that reaches the floor lies on it. `rest` is the
 // height of anything past the foot that the cloth lies on.
-export function drapePoint(px, pz, b) {
+// The bed the cloth lies on: x0 to x1 across, its foot at z1, its top `top` high with edges rounded
+// to r, the floor at `floor`; seed and folds shape the folds, and rest is anything past the foot.
+export interface DrapeBed { x0: number; x1: number; z1: number; top: number; r: number; floor?: number; seed?: number; folds?: number; rest?: number | undefined }
+export function drapePoint(px: number, pz: number, b: DrapeBed): Point {
   const { x0, x1, z1, top, r, floor = 0, seed = 0, folds = 1 } = b;
   const sx = px > (x0 + x1) / 2 ? 1 : -1, edge = sx > 0 ? x1 : x0;
   const ex = sx * (px - edge) + r, ez = pz - z1 + r;
   if (ex <= 0 && ez <= 0) return [px, top, pz];
   // how far past the start of the rounding, which way it falls, and where it is along the edge
-  let e, dir, s;
+  let e: number, dir: [number, number], s: number;
   if (ez <= 0) { e = ex; dir = [sx, 0]; s = ez; }
   else if (ex <= 0) { e = ez; dir = [0, 1]; s = ez * Math.PI / 2 - ex; }
   else { e = Math.hypot(ex, ez); const phi = Math.atan2(ez, ex); dir = [sx * Math.cos(phi), Math.sin(phi)]; s = e * phi; }

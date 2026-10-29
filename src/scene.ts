@@ -4,19 +4,20 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
-import { $, buildSelForm, BUILTIN, clearances, currentPlan, draw, esc, frontDir, giltFrame, hooks, initPlanner, isBad, kelvinRGB, kindOf, lightSources, load, moveTo, n, openPlan, OPPOSITE, opSeg, parts, photoPanes, PRINTS, sel, select, selId, state, swingGeom, THEME, THROW_DROP, throwRoom, topOf, turnOf, wardrobeSwings } from "./core.js";
-import { drapePoint, pillowPoint } from "./cloth.js";
-import { kuwahara } from "./kuwahara.js";
-import { stepDoor } from "./doors.js";
+import { $, buildSelForm, BUILTIN, clearances, currentPlan, draw, esc, formField, frontDir, giltFrame, hooks, initPlanner, isBad, kelvinRGB, kindOf, lightSources, moveTo, n, openPlan, OPPOSITE, opSeg, parts, photoPanes, PRINTS, sel, select, selId, state, swingGeom, THEME, THROW_DROP, targetOf, throwRoom, topOf, turnOf, wardrobeSwings, type BandTone, type Part, type Swing } from "./core.ts";
+import { drapePoint, pillowPoint, type DrapeBed, type Point } from "./cloth.ts";
+import { kuwahara } from "./kuwahara.ts";
+import { stepDoor, type DoorSwing } from "./doors.ts";
+import type { Item, Kind, OpeningKind, Wall, Opening } from "./types.ts";
 
 const fmt = n; // the core's one-decimal formatter
 // ?shot shows only the room; it is how the link-preview pictures are taken.
 const shot = /[?&]shot\b/.test(location.search);
 document.body.classList.toggle("shot", shot);
-const stage = document.getElementById("stage");
-const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const stage = $("#stage");
+const css = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const ACCENT = css("--accent"), WARN = css("--warn"), MUTED = css("--muted");
-const SWING_COLOR = { door: css("--door"), closet: css("--closet") };
+const SWING_COLOR: Partial<Record<OpeningKind, string>> = { door: css("--door"), closet: css("--closet") };
 
 /* ---------- renderer, camera, lights ---------- */
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -27,7 +28,7 @@ renderer.toneMapping = THREE.NeutralToneMapping;
 renderer.toneMappingExposure = 1.05;
 stage.prepend(renderer.domElement);
 const canvas = renderer.domElement;
-const labelRenderer = new CSS2DRenderer({ element: document.getElementById("labels") });
+const labelRenderer = new CSS2DRenderer({ element: $("#labels") });
 
 const scene = new THREE.Scene();
 scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
@@ -50,10 +51,11 @@ sun.shadow.normalBias = 0.6;
 scene.add(sun, sun.target);
 
 /* ---------- small helpers ---------- */
-const col = c => new THREE.Color(c);
-const shade = (c, k) => col(c).lerp(col(k >= 0 ? "#ffffff" : "#000000"), Math.abs(k));
+const col = (c: THREE.ColorRepresentation) => new THREE.Color(c);
+const shade = (c: THREE.ColorRepresentation, k: number) => col(c).lerp(col(k >= 0 ? "#ffffff" : "#000000"), Math.abs(k));
 // A repeatable random stream, so a piece keeps the same books and shoes each time it is redrawn.
-function rng(seed) {
+type Rand = () => number;
+function rng(seed: string | number): Rand {
   let h = 2166136261;
   for (const ch of String(seed)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
   return () => {
@@ -63,23 +65,24 @@ function rng(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const pick = (r, list) => list[Math.floor(r() * list.length)];
-function canvasTex(w, h, paint) {
+const pick = <const T>(r: Rand, list: readonly T[]): T => list[Math.floor(r() * list.length)]!;
+type Paint = (g: CanvasRenderingContext2D, w: number, h: number) => void;
+function canvasTex(w: number, h: number, paint: Paint): THREE.CanvasTexture {
   const cv = document.createElement("canvas");
   cv.width = w; cv.height = h;
-  paint(cv.getContext("2d"), w, h);
+  paint(cv.getContext("2d")!, w, h);
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
   return t;
 }
-const matCache = new Map();
-function cached(key, make) {
+const matCache = new Map<string, THREE.Material>();
+function cached<T extends THREE.Material>(key: string, make: () => T): T {
   if (!matCache.has(key)) matCache.set(key, make());
-  return matCache.get(key);
+  return matCache.get(key) as T;
 }
 // Plain painted or fabric surface.
-const M = (c, rough = 0.8, metal = 0) => cached(`m${col(c).getHexString()}/${rough}/${metal}`,
+const M = (c: THREE.ColorRepresentation, rough = 0.8, metal = 0) => cached(`m${col(c).getHexString()}/${rough}/${metal}`,
   () => new THREE.MeshStandardMaterial({ color: col(c), roughness: rough, metalness: metal }));
 const grainTex = canvasTex(256, 256, (g, w, h) => {
   const r = rng("grain");
@@ -91,7 +94,7 @@ const grainTex = canvasTex(256, 256, (g, w, h) => {
     g.beginPath(); g.moveTo(0, y); g.bezierCurveTo(w * 0.3, y + (r() - 0.5) * 14, w * 0.7, y + (r() - 0.5) * 14, w, y + (r() - 0.5) * 6); g.stroke();
   }
 });
-const wood = c => cached("w" + col(c).getHexString(), () => new THREE.MeshStandardMaterial({ color: col(c), roughness: 0.62, map: grainTex }));
+const wood = (c: THREE.ColorRepresentation) => cached("w" + col(c).getHexString(), () => new THREE.MeshStandardMaterial({ color: col(c), roughness: 0.62, map: grainTex }));
 const METAL = M("#b9bdc2", 0.3, 0.9), DARK_METAL = M("#3a3b3f", 0.4, 0.8), BRASS = M("#b08d57", 0.35, 0.85);
 const TRIM = M("#fbfaf6", 0.55), WALL = M(THEME.walls, 0.95);
 const MIRROR = new THREE.MeshStandardMaterial({ color: 0xe6edf2, roughness: 0.03, metalness: 1, envMapIntensity: 2.2 });
@@ -100,7 +103,7 @@ const SKY = new THREE.MeshBasicMaterial({ color: 0xd9ecf7 });
 const SHADE = new THREE.MeshStandardMaterial({ color: 0xfff3d6, emissive: 0xffcf7a, emissiveIntensity: 0.55, roughness: 1 });
 
 // Box whose (x, z) is its centre and y its underside.
-function bxm(g, w, h, d, x, y, z, m, round = 0) {
+function bxm(g: THREE.Object3D, w: number, h: number, d: number, x: number, y: number, z: number, m: THREE.Material, round = 0): THREE.Mesh | null {
   if (!(w > 0 && h > 0 && d > 0)) return null;
   const rr = Math.min(round, w / 2 - 0.02, h / 2 - 0.02, d / 2 - 0.02);
   const geo = rr > 0.05 ? new RoundedBoxGeometry(w, h, d, 2, rr) : new THREE.BoxGeometry(w, h, d);
@@ -110,7 +113,7 @@ function bxm(g, w, h, d, x, y, z, m, round = 0) {
   return mesh;
 }
 // Cylinder centred on (x, y, z), running along the given axis.
-function cyl(g, rTop, rBot, len, x, y, z, m, axis = "y", sides = 16) {
+function cyl(g: THREE.Object3D, rTop: number, rBot: number, len: number, x: number, y: number, z: number, m: THREE.Material, axis: "x" | "y" | "z" = "y", sides = 16) {
   const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, len, sides), m);
   if (axis === "x") mesh.rotation.z = Math.PI / 2;
   if (axis === "z") mesh.rotation.x = Math.PI / 2;
@@ -118,30 +121,30 @@ function cyl(g, rTop, rBot, len, x, y, z, m, axis = "y", sides = 16) {
   g.add(mesh);
   return mesh;
 }
-function ball(g, r, x, y, z, m) {
+function ball(g: THREE.Object3D, r: number, x: number, y: number, z: number, m: THREE.Material) {
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), m);
   mesh.position.set(x, y, z);
   g.add(mesh);
   return mesh;
 }
 // Ring standing upright, facing the front.
-function ring(g, R, tube, x, y, z, m) {
+function ring(g: THREE.Object3D, R: number, tube: number, x: number, y: number, z: number, m: THREE.Material) {
   const mesh = new THREE.Mesh(new THREE.TorusGeometry(R, tube, 8, 28), m);
   mesh.position.set(x, y, z);
   g.add(mesh);
   return mesh;
 }
 // Empty a group, freeing its geometry and taking its labels off the page.
-function wipe(group) {
+function wipe(group: THREE.Object3D) {
   for (const ch of [...group.children]) {
     ch.traverse(o => {
-      if (o.isCSS2DObject) o.element.remove();
-      if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose();
+      if (o instanceof CSS2DObject) o.element.remove();
+      if ("geometry" in o && o.geometry instanceof THREE.BufferGeometry && !o.geometry.userData.shared) o.geometry.dispose();
     });
     group.remove(ch);
   }
 }
-function tag(text, cls, x, y, z) {
+function tag(text: string, cls: string, x: number, y: number, z: number) {
   const el = document.createElement("div");
   el.className = "tag " + cls;
   el.textContent = text;
@@ -151,17 +154,18 @@ function tag(text, cls, x, y, z) {
 }
 
 /* ---------- pictures and patterns ---------- */
-function skyFill(g, w, h, top, bottom) {
+function skyFill(g: CanvasRenderingContext2D, w: number, h: number, top: string, bottom: string) {
   const grad = g.createLinearGradient(0, 0, 0, h);
   grad.addColorStop(0, top); grad.addColorStop(1, bottom);
   g.fillStyle = grad; g.fillRect(0, 0, w, h);
 }
-function ridge(g, w, h, base, rough, r, fill) {
+function ridge(g: CanvasRenderingContext2D, w: number, h: number, base: number, rough: number, r: Rand, fill: string) {
   g.fillStyle = fill;
   g.beginPath(); g.moveTo(0, h);
   for (let x = 0; x <= w; x += w / 14) g.lineTo(x, base - r() * rough);
   g.lineTo(w, h); g.fill();
 }
+type Painter = (g: CanvasRenderingContext2D, w: number, h: number, r: Rand) => void;
 const PICTURES = {
   valley(g, w, h, r) {
     skyFill(g, w, h, "#8fc1e3", "#f3e3c8");
@@ -192,7 +196,7 @@ const PICTURES = {
     for (let y = 0; y < h; y += w / 6) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
     g.strokeStyle = "#9a6a3c";
     for (let k = 0; k < 3; k++) {
-      const cx = w * (0.2 + r() * 0.6), cy = h * (0.2 + r() * 0.6), wob = [r(), r(), r(), r()];
+      const cx = w * (0.2 + r() * 0.6), cy = h * (0.2 + r() * 0.6), wob = [r(), r(), r(), r()] as const;
       for (let i = 1; i < 9; i++) {
         g.lineWidth = i % 4 === 0 ? 2 : 1;
         g.beginPath();
@@ -233,8 +237,8 @@ const PICTURES = {
       g.beginPath(); g.ellipse(r() * w, r() * h, w * (0.1 + r() * 0.2), h * (0.08 + r() * 0.18), r() * 3, 0, 7); g.fill();
     }
   }
-};
-function pictureFor(name) {
+} satisfies Record<string, Painter>;
+function pictureFor(name: string): keyof typeof PICTURES {
   if (/grid/.test(name)) return "grid";
   if (/panorama|yosemite|valley/.test(name)) return "valley";
   if (/topo|map/.test(name)) return "topo";
@@ -242,21 +246,21 @@ function pictureFor(name) {
   if (/print|poster|park/.test(name)) return "poster";
   return "abstract";
 }
-const pictureMat = (name, seed, aspect) => cached(`pic${name}/${seed}/${aspect.toFixed(2)}`, () => {
+const pictureMat = (name: string, seed: string, aspect: number) => cached(`pic${name}/${seed}/${aspect.toFixed(2)}`, () => {
   const w = aspect >= 1 ? 512 : Math.round(512 * aspect), h = aspect >= 1 ? Math.round(512 / aspect) : 512;
   return new THREE.MeshStandardMaterial({ map: canvasTex(w, h, (g, cw, ch) => PICTURES[pictureFor(name)](g, cw, ch, rng(seed))), roughness: 0.6 });
 });
 // Carving for the gilt frames' carved band: C-scrolls, leaves and a rosette in worn gold leaf, drawn
 // along a band len long and T across. One tile runs four times as long as it is wide; a vertical
 // rail gets the same carving turned upright.
-function paintCarving(g, len, T) {
+function paintCarving(g: CanvasRenderingContext2D, len: number, T: number) {
   const grad = g.createLinearGradient(0, 0, 0, T);
   grad.addColorStop(0, "#e9c870"); grad.addColorStop(0.5, "#b8903e"); grad.addColorStop(1, "#7d5c24");
   g.fillStyle = grad; g.fillRect(0, 0, len, T);
   const r = rng("carving"), mid = T / 2, step = len / 2;
   for (let k = 0; k < 2; k++) {
     const cx = step * k + step / 2;
-    for (const [dx, lw, col] of [[1.5, T * 0.11, "rgba(70,45,12,.75)"], [0, T * 0.08, "#f6dc8c"]]) {
+    for (const [dx, lw, col] of [[1.5, T * 0.11, "rgba(70,45,12,.75)"], [0, T * 0.08, "#f6dc8c"]] as const) {
       g.strokeStyle = col; g.lineWidth = lw; g.lineCap = "round";
       for (const s of [-1, 1]) { // a C-scroll each side of the rosette
         g.beginPath(); g.arc(cx + s * step * 0.28 + dx, mid + dx, T * 0.26, s > 0 ? Math.PI * 0.6 : -Math.PI * 0.4, s > 0 ? Math.PI * 2.1 : Math.PI * 1.1); g.stroke();
@@ -278,11 +282,11 @@ const CARVED = {
   v: canvasTex(64, 256, (g, w, h) => { g.translate(w, 0); g.rotate(Math.PI / 2); paintCarving(g, h, w); })
 };
 // Gold leaf for a plain band of a gilt frame, in the shared palette: [roughness, metalness] per tone.
-const GILT_FINISH = { gilt: [0.36, 0.85], shadow: [0.7, 0.4], bead: [0.28, 0.9] };
-const giltMat = b => M(b.color, ...GILT_FINISH[b.tone]);
+const GILT_FINISH: Record<Exclude<BandTone, "carved">, [number, number]> = { gilt: [0.36, 0.85], shadow: [0.7, 0.4], bead: [0.28, 0.9] };
+const giltMat = (tone: Exclude<BandTone, "carved">, color: string) => M(color, ...GILT_FINISH[tone]);
 // The carved band's carving, repeated along a rail len long and across wide; vertical rails use
 // the upright tile.
-function carvedMat(len, across, vertical = false) {
+function carvedMat(len: number, across: number, vertical = false) {
   const n = Math.max(1, Math.round(len / (across * 4)));
   return cached(`giltcarved/${n}/${vertical}`, () => {
     const t = (vertical ? CARVED.v : CARVED.h).clone();
@@ -296,8 +300,8 @@ function carvedMat(len, across, vertical = false) {
 // sits in the flat-shaded room like everything else: every frame keeps the same level of detail,
 // the painter's filter turns that detail into smooth strokes, and the texture is blended, not blocky.
 const PRINT_PIXELS_PER_INCH = 7;
-const photoMat = (key, w, h) => cached(`photo${key}/${w.toFixed(1)}x${h.toFixed(1)}`, () => {
-  const cv = document.createElement("canvas"), g = cv.getContext("2d", { willReadFrequently: true });
+const photoMat = (key: string, w: number, h: number) => cached(`photo${key}/${w.toFixed(1)}x${h.toFixed(1)}`, () => {
+  const cv = document.createElement("canvas"), g = cv.getContext("2d", { willReadFrequently: true })!;
   cv.width = Math.max(4, Math.round(w * PRINT_PIXELS_PER_INCH));
   cv.height = Math.max(4, Math.round(h * PRINT_PIXELS_PER_INCH));
   g.fillStyle = "#8a8f94"; g.fillRect(0, 0, cv.width, cv.height); // shown until the photo arrives
@@ -314,12 +318,13 @@ const photoMat = (key, w, h) => cached(`photo${key}/${w.toFixed(1)}x${h.toFixed(
     g.putImageData(px, 0, 0);
     t.needsUpdate = true;
   };
-  img.onerror = () => console.error("Could not load the print", PRINTS[key].file);
-  img.src = PRINTS[key].file;
+  const { file } = PRINTS[key]!; // photoMat is only asked for prints that exist
+  img.onerror = () => console.error("Could not load the print", file);
+  img.src = file;
   return new THREE.MeshStandardMaterial({ map: t, roughness: 0.45 });
 });
 // Indigo resist-dyed cloth: a grid of cells, each with its own motif.
-const adireMat = (c, aspect) => cached(`adire${c}/${aspect.toFixed(2)}`, () => new THREE.MeshStandardMaterial({
+const adireMat = (c: string, aspect: number) => cached(`adire${c}/${aspect.toFixed(2)}`, () => new THREE.MeshStandardMaterial({
   roughness: 1, side: THREE.DoubleSide,
   map: canvasTex(384, Math.round(384 / aspect), (g, w, h) => {
     const r = rng("adire" + c), cols = 4, cell = w / cols, rows = Math.ceil(h / cell);
@@ -336,12 +341,12 @@ const adireMat = (c, aspect) => cached(`adire${c}/${aspect.toFixed(2)}`, () => n
   })
 }));
 // Button-tufted upholstery seen from above: two staggered rows of buttons with pleats running between them.
-const tuftMat = (c, aspect) => cached(`tuft${c}/${aspect.toFixed(2)}`, () => new THREE.MeshStandardMaterial({
+const tuftMat = (c: string, aspect: number) => cached(`tuft${c}/${aspect.toFixed(2)}`, () => new THREE.MeshStandardMaterial({
   roughness: 1,
   map: canvasTex(768, Math.max(64, Math.round(768 / aspect)), (g, w, h) => {
-    const hex = k => "#" + shade(c, k).getHexString(), cols = Math.max(2, Math.round(7 * aspect / 2.9));
+    const hex = (k: number) => "#" + shade(c, k).getHexString(), cols = Math.max(2, Math.round(7 * aspect / 2.9));
     g.fillStyle = hex(0); g.fillRect(0, 0, w, h);
-    const rows = [[...Array(cols)].map((_, i) => [w * (i + 1) / (cols + 1), h / 3]), [...Array(cols - 1)].map((_, i) => [w * (i + 1.5) / (cols + 1), h * 2 / 3])];
+    const rows: [[number, number][], [number, number][]] = [[...Array(cols)].map((_, i) => [w * (i + 1) / (cols + 1), h / 3]), [...Array(cols - 1)].map((_, i) => [w * (i + 1.5) / (cols + 1), h * 2 / 3])];
     // puffed cushion between the buttons
     for (let i = 0; i <= cols; i++) for (const y of [h / 6, h / 2, h * 5 / 6]) {
       const x = w * (i + (y === h / 2 ? 1 : 0.5)) / (cols + 1), rad = w / (cols + 1) * 0.7, grad = g.createRadialGradient(x, y, 0, x, y, rad);
@@ -349,8 +354,8 @@ const tuftMat = (c, aspect) => cached(`tuft${c}/${aspect.toFixed(2)}`, () => new
       g.fillStyle = grad; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
     }
     g.strokeStyle = hex(-0.45); g.lineWidth = 2;
-    const line = (p, q) => { g.beginPath(); g.moveTo(...p); g.lineTo(...q); g.stroke(); };
-    rows[0].forEach((p, i) => { line(p, [p[0], 0]); if (rows[1][i]) line(p, rows[1][i]); if (rows[1][i - 1]) line(p, rows[1][i - 1]); });
+    const line = (p: [number, number], q: [number, number]) => { g.beginPath(); g.moveTo(...p); g.lineTo(...q); g.stroke(); };
+    rows[0].forEach((p, i) => { line(p, [p[0], 0]); if (rows[1][i]) line(p, rows[1][i]); const prev = rows[1][i - 1]; if (prev) line(p, prev); });
     rows[1].forEach(p => line(p, [p[0], h]));
     for (const [x, y] of rows.flat()) {
       const grad = g.createRadialGradient(x, y, 0, x, y, 16);
@@ -379,16 +384,16 @@ const fabricTex = (() => {
   t.repeat.set(14, 7);
   return t;
 })();
-const fabricMat = (c, sheen = 0.8) => cached(`fabric${col(c).getHexString()}/${sheen}`, () => new THREE.MeshPhysicalMaterial({
+const fabricMat = (c: THREE.ColorRepresentation, sheen = 0.8) => cached(`fabric${col(c).getHexString()}/${sheen}`, () => new THREE.MeshPhysicalMaterial({
   color: col(c), map: fabricTex, bumpMap: fabricTex, bumpScale: 0.35, roughness: 0.9,
   sheen, sheenRoughness: 0.6, sheenColor: shade(c, 0.4)
 }));
 // Femi's bed is upholstered in a light heather grey: frame, rails and a channel-tufted headboard.
 const BED_FABRIC = "#b8b5ae";
 // The headboard's face: heather fabric stitched into a grid of padded rectangles.
-const headboardMat = (c, aspect) => cached(`headboard${c}/${aspect.toFixed(2)}`, () => {
+const headboardMat = (c: string, aspect: number) => cached(`headboard${c}/${aspect.toFixed(2)}`, () => {
   const map = canvasTex(768, Math.max(64, Math.round(768 / aspect)), (g, w, h) => {
-    const r = rng("heather"), hex = k => "#" + shade(c, k).getHexString(), cols = Math.max(2, Math.round(aspect * 2.4)), rows = 3;
+    const r = rng("heather"), hex = (k: number) => "#" + shade(c, k).getHexString(), cols = Math.max(2, Math.round(aspect * 2.4)), rows = 3;
     g.fillStyle = hex(0); g.fillRect(0, 0, w, h);
     for (let i = 0; i < 9000; i++) { g.fillStyle = r() < 0.5 ? "rgba(255,255,255,.10)" : "rgba(0,0,0,.08)"; g.fillRect(r() * w, r() * h, 2, 1); }
     const cw = w / cols, ch = h / rows;
@@ -404,17 +409,17 @@ const headboardMat = (c, aspect) => cached(`headboard${c}/${aspect.toFixed(2)}`,
   return new THREE.MeshStandardMaterial({ map, bumpMap: map, bumpScale: 1.2, roughness: 0.95 });
 });
 // The comforter: a sage quilt pinched on a diamond grid, each pinch a little X with puffy fill between.
-const quiltMat = (c, aspect) => cached(`quilt${c}/${aspect.toFixed(2)}`, () => {
+const quiltMat = (c: string, aspect: number) => cached(`quilt${c}/${aspect.toFixed(2)}`, () => {
   const map = canvasTex(1024, Math.max(64, Math.round(1024 / aspect)), (g, w, h) => {
     // pinches about every 5 1/2 in across a 67 in comforter
-    const hex = k => "#" + shade(c, k).getHexString(), step = w / Math.max(6, Math.round(aspect * 11));
+    const hex = (k: number) => "#" + shade(c, k).getHexString(), step = w / Math.max(6, Math.round(aspect * 11));
     g.fillStyle = hex(0); g.fillRect(0, 0, w, h);
     for (let row = 0, y = 0; y < h + step; row++, y += step * 0.75) for (let x = row % 2 ? step / 2 : 0; x < w + step; x += step) {
       const grad = g.createRadialGradient(x, y, 0, x, y, step * 0.6);
       grad.addColorStop(0, "rgba(0,0,0,.10)"); grad.addColorStop(0.2, "rgba(0,0,0,.02)"); grad.addColorStop(0.65, "rgba(255,255,255,.06)"); grad.addColorStop(1, "rgba(255,255,255,0)");
       g.fillStyle = grad; g.fillRect(x - step, y - step, step * 2, step * 2);
       g.strokeStyle = hex(-0.18); g.lineWidth = 1.2;
-      for (const [dx, dy] of [[1, 1], [1, -1]]) { g.beginPath(); g.moveTo(x - dx * 3.5, y - dy * 3.5); g.lineTo(x + dx * 3.5, y + dy * 3.5); g.stroke(); }
+      for (const [dx, dy] of [[1, 1], [1, -1]] as const) { g.beginPath(); g.moveTo(x - dx * 3.5, y - dy * 3.5); g.lineTo(x + dx * 3.5, y + dy * 3.5); g.stroke(); }
     }
   });
   return new THREE.MeshStandardMaterial({ map, bumpMap: map, bumpScale: 1.5, roughness: 0.92 });
@@ -445,11 +450,11 @@ const bambooMat = () => cached("bamboo", () => {
 // A bean bag's sack: a sphere pushed into shape. The beans settle into a wide flat base with
 // bulging sides, the back stays up as a backrest, the seat sinks where someone sat, and the
 // cover creases round that dent.
-function sackGeometry(a, dp, h, seed) {
-  const geo = new THREE.SphereGeometry(1, 128, 88), pos = geo.attributes.position, r = rng(seed);
-  const ph = [...Array(5)].map(() => r() * 6.3), body = h * 0.64, seatZ = dp * 0.1;
-  const smooth = (lo, hi, v) => { const t = clamp((v - lo) / (hi - lo), 0, 1); return t * t * (3 - 2 * t); };
-  let backTop = [0, 0, 0];
+function sackGeometry(a: number, dp: number, h: number, seed: string) {
+  const geo = new THREE.SphereGeometry(1, 128, 88), pos = geo.attributes.position!, r = rng(seed);
+  const ph = [...Array(5)].map(() => r() * 6.3) as [number, number, number, number, number], body = h * 0.64, seatZ = dp * 0.1;
+  const smooth = (lo: number, hi: number, v: number) => { const t = clamp((v - lo) / (hi - lo), 0, 1); return t * t * (3 - 2 * t); };
+  let backTop: Point = [0, 0, 0];
   for (let i = 0; i < pos.count; i++) {
     const ux = pos.getX(i), uy = pos.getY(i), uz = pos.getZ(i);
     // settled profile: a flat contact patch, sides that bulge low and tuck under, a rounded top
@@ -478,22 +483,22 @@ function sackGeometry(a, dp, h, seed) {
   }
   geo.computeVertexNormals();
   // the sphere repeats vertices along its seam and at its poles; give each copy the same normal
-  const nrm = geo.attributes.normal, shared = new Map(), key = i => [pos.getX(i), pos.getY(i), pos.getZ(i)].map(v => v.toFixed(3)).join();
+  const nrm = geo.attributes.normal!, shared = new Map<string, Point>(), key = (i: number) => [pos.getX(i), pos.getY(i), pos.getZ(i)].map(v => v.toFixed(3)).join();
   for (let i = 0; i < pos.count; i++) {
-    const k = key(i), s = shared.get(k) || shared.set(k, [0, 0, 0]).get(k);
+    const k = key(i), s = shared.get(k) || shared.set(k, [0, 0, 0]).get(k)!;
     s[0] += nrm.getX(i); s[1] += nrm.getY(i); s[2] += nrm.getZ(i);
   }
   for (let i = 0; i < pos.count; i++) {
-    const [nx, ny, nz] = shared.get(key(i)), len = Math.hypot(nx, ny, nz) || 1;
+    const [nx, ny, nz] = shared.get(key(i))!, len = Math.hypot(nx, ny, nz) || 1;
     nrm.setXYZ(i, nx / len, ny / len, nz / len);
   }
   geo.userData.backTop = backTop;
   return geo;
 }
-const rugMat = (c, name, aspect) => cached(`rug${c}/${/jute/.test(name)}/${aspect.toFixed(2)}`, () => new THREE.MeshStandardMaterial({
+const rugMat = (c: string, name: string, aspect: number) => cached(`rug${c}/${/jute/.test(name)}/${aspect.toFixed(2)}`, () => new THREE.MeshStandardMaterial({
   roughness: 1,
   map: canvasTex(512, Math.max(64, Math.round(512 / aspect)), (g, w, h) => {
-    const r = rng("rug" + c), hex = k => "#" + shade(c, k).getHexString();
+    const r = rng("rug" + c), hex = (k: number) => "#" + shade(c, k).getHexString();
     g.fillStyle = hex(0); g.fillRect(0, 0, w, h);
     if (/jute/.test(name)) {
       for (let y = 0; y < h; y += 5) { g.fillStyle = `rgba(90,60,20,${0.08 + r() * 0.14})`; g.fillRect(0, y, w, 2.5); }
@@ -512,8 +517,9 @@ const rugMat = (c, name, aspect) => cached(`rug${c}/${/jute/.test(name)}/${aspec
 }));
 
 // A grid of points as one smooth surface; at(i, j) gives each point and its texture coordinate.
-function gridGeometry(nu, nv, at, flip = false) {
-  const pos = [], uv = [], idx = [];
+type GridAt = (i: number, j: number) => [Point, [number, number]];
+function gridGeometry(nu: number, nv: number, at: GridAt, flip = false) {
+  const pos: number[] = [], uv: number[] = [], idx: number[] = [];
   for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) { const [p, t] = at(i, j); pos.push(...p); uv.push(...t); }
   for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) {
     const a = j * (nu + 1) + i, b = a + 1, c = a + nu + 1, d = c + 1;
@@ -527,24 +533,25 @@ function gridGeometry(nu, nv, at, flip = false) {
   return geo;
 }
 // A cord along a run of points, for piping, hems and the folded edge of a throw.
-function cord(g, pts, radius, m, closed = false) {
+function cord(g: THREE.Object3D, pts: Point[], radius: number, m: THREE.Material, closed = false) {
   const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p)), closed);
   g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, pts.length * 2, radius, 6, closed), m));
 }
 // A pillow (see pillowPoint) placed with its middle at (x, y, z). `stand` tips it back from lying
 // flat, in radians, so the far end rests against whatever is behind it. `welt` pipes the seam.
-function pillow(g, { w, len, t, x, y, z, stand = 0, m, under = m, welt, seed = 0, dent = 0 }) {
-  const o = { w, len, t, seed, dent }, n = 40, at = side => (i, j) => {
+interface PillowSpec { w: number; len: number; t: number; x: number; y: number; z: number; stand?: number; m: THREE.Material; under?: THREE.Material; welt?: THREE.Material; seed?: number; dent?: number }
+function pillow(g: THREE.Object3D, { w, len, t, x, y, z, stand = 0, m, under = m, welt, seed = 0, dent = 0 }: PillowSpec) {
+  const o = { w, len, t, seed, dent }, n = 40, at = (side: number): GridAt => (i, j) => {
     const u = -1 + 2 * i / n, v = -1 + 2 * j / n;
     return [pillowPoint(u, v, side, o), [i / n, j / n]];
   };
   const p = new THREE.Group();
   p.add(new THREE.Mesh(gridGeometry(n, n, at(1)), m), new THREE.Mesh(gridGeometry(n, n, at(-1), true), under));
   if (welt) {
-    const ring = [];
+    const ring: Point[] = [];
     for (let k = 0; k < 4 * n; k++) {
       const s = k % n / n * 2 - 1, edge = Math.floor(k / n);
-      ring.push(pillowPoint(...[[s, -1], [1, s], [-s, 1], [-1, -s]][edge], 1, o));
+      ring.push(pillowPoint(...[[s, -1], [1, s], [-s, 1], [-1, -s]][edge] as [number, number], 1, o));
     }
     cord(p, ring, 0.22, welt, true);
   }
@@ -573,16 +580,17 @@ const knitTex = (() => {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return t;
 })();
-const knitMat = c => cached("knit" + col(c).getHexString(), () => new THREE.MeshPhysicalMaterial({
+const knitMat = (c: THREE.ColorRepresentation) => cached("knit" + col(c).getHexString(), () => new THREE.MeshPhysicalMaterial({
   color: shade(c, 0.18), map: knitTex, bumpMap: knitTex, bumpScale: 3, roughness: 0.95, side: THREE.DoubleSide,
   sheen: 0.6, sheenRoughness: 0.8, sheenColor: shade(c, 0.35)
 }));
 // A knit throw w by d laid flat with its middle at (cx, cz), turned `turn` radians, then draped over
 // the bed described by `bed` (see drapePoint). It is folded in half, so the edge toward the head is
 // a thick fold; the other edges are hemmed and the short ends finish in a knotted fringe.
-function throwBlanket(g, { w, d, cx, cz, turn = 0, bed, c, seed = 0 }) {
+interface ThrowSpec { w: number; d: number; cx: number; cz: number; turn?: number; bed: DrapeBed; c: string; seed?: number }
+function throwBlanket(g: THREE.Object3D, { w, d, cx, cz, turn = 0, bed, c, seed = 0 }: ThrowSpec) {
   const nu = Math.round(w * 1.6), nv = Math.round(d * 1.6), tile = 4.5, m = knitMat(c);
-  const cos = Math.cos(turn), sin = Math.sin(turn), grid = [];
+  const cos = Math.cos(turn), sin = Math.sin(turn), grid: Point[] = [];
   for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) {
     const lx = -w / 2 + w * i / nu, lz = -d / 2 + d * j / nv;
     const p = drapePoint(cx + lx * cos - lz * sin, cz + lx * sin + lz * cos, { ...bed, seed });
@@ -590,16 +598,16 @@ function throwBlanket(g, { w, d, cx, cz, turn = 0, bed, c, seed = 0 }) {
     p[1] += 0.25 * Math.max(0, Math.sin(lx * 0.35 + seed) * Math.sin(lz * 0.5 - seed)) * (p[1] >= bed.top - 0.01 ? 1 : 0);
     grid.push(p);
   }
-  const at = (i, j) => grid[j * (nu + 1) + i];
+  const at = (i: number, j: number) => grid[j * (nu + 1) + i]!;
   g.add(new THREE.Mesh(gridGeometry(nu, nv, (i, j) => [at(i, j), [w * i / nu / tile, d * j / nv / tile]]), m));
-  const row = (j, from, to) => [...Array(Math.abs(to - from) + 1)].map((_, k) => at(from + Math.sign(to - from) * k, j));
-  const column = (i, from, to) => [...Array(Math.abs(to - from) + 1)].map((_, k) => at(i, from + Math.sign(to - from) * k));
+  const row = (j: number, from: number, to: number) => [...Array(Math.abs(to - from) + 1)].map((_, k) => at(from + Math.sign(to - from) * k, j));
+  const column = (i: number, from: number, to: number) => [...Array(Math.abs(to - from) + 1)].map((_, k) => at(i, from + Math.sign(to - from) * k));
   cord(g, row(0, 0, nu), 0.6, m);
   cord(g, row(nv, 0, nu), 0.3, m);
   for (const i of [0, nu]) cord(g, column(i, 0, nv), 0.3, m);
   // fringe: a knotted tassel every inch or so, carrying on the way the cloth falls
   const r = rng("fringe" + seed), fringe = M(shade(c, 0.05), 0.95), knot = new THREE.SphereGeometry(0.17, 6, 4);
-  for (const [i, prev] of [[0, 4], [nu, nu - 4]]) for (let j = 1; j < nv; j++) {
+  for (const [i, prev] of [[0, 4], [nu, nu - 4]] as const) for (let j = 1; j < nv; j++) {
     const p = new THREE.Vector3(...at(i, j)), dir = p.clone().sub(new THREE.Vector3(...at(prev, j))).normalize();
     dir.x += (r() - 0.5) * 0.15; dir.z += (r() - 0.5) * 0.15; dir.normalize();
     const len = 1.6 + r() * 0.5, t = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, len, 4), fringe);
@@ -615,12 +623,12 @@ function throwBlanket(g, { w, d, cx, cz, turn = 0, bed, c, seed = 0 }) {
 const SHOE_COLORS = ["#2b2d33", "#f1efe9", "#8a4b2a", "#3d5a80", "#b23a48", "#5b6e4d", "#c9a227", "#6d6875"];
 const CLOTHES = ["#27374d", "#5b6e4d", "#e9e2d0", "#a4553a", "#3a3d45", "#6b8fb5", "#8c8577", "#141518", "#b89b5e"];
 const BOOKS = ["#8c3b2f", "#2f4858", "#e3b23c", "#f1ead8", "#4f6d7a", "#33658a", "#7a9e7e", "#2b2d33", "#c2622d", "#b7a99a"];
-function shoe(g, x, y, z, len, c) {
+function shoe(g: THREE.Object3D, x: number, y: number, z: number, len: number, c: string) {
   bxm(g, 3.7, 0.8, len, x, y, z, M("#f2f0ea", 0.9), 0.3);
   bxm(g, 3.5, 2, len * 0.96, x, y + 0.7, z, M(c, 0.85), 0.9);
   bxm(g, 3.3, 1.5, len * 0.42, x, y + 2.2, z - len * 0.27, M(c, 0.85), 0.6);
 }
-function shoeRow(g, width, y, z, len, r) {
+function shoeRow(g: THREE.Object3D, width: number, y: number, z: number, len: number, r: Rand) {
   const count = Math.max(Math.floor(width / 9.4), width >= 8 ? 1 : 0);
   for (let i = 0; i < count; i++) {
     const c = pick(r, SHOE_COLORS), x = -width / 2 + width / count * (i + 0.5);
@@ -628,7 +636,7 @@ function shoeRow(g, width, y, z, len, r) {
     shoe(g, x - 2.05, y, z, len, c); shoe(g, x + 2.05, y, z, len, c);
   }
 }
-function fronts(g, width, y0, y1, z, rows, cols, m, handle) {
+function fronts(g: THREE.Object3D, width: number, y0: number, y1: number, z: number, rows: number, cols: number, m: THREE.Material, handle: "knob" | "pull") {
   const ch = (y1 - y0) / rows, cw = width / cols;
   for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) {
     const x = -width / 2 + cw * (j + 0.5), y = y0 + ch * i;
@@ -637,16 +645,17 @@ function fronts(g, width, y0, y1, z, rows, cols, m, handle) {
     if (handle === "pull") bxm(g, cw * 0.4, 0.5, 0.7, x, y + ch - 2.4, z + 0.7, DARK_METAL);
   }
 }
-function chest(g, { a, dp, h, c, name }, leg, maxRows) {
-  const surface = /painted/.test(name) ? k => M(shade(c, k), 0.7) : k => wood(shade(c, k)); // paint is matte, with no grain
+interface ModelSpec { it: Item; a: number; dp: number; h: number; c: string; name: string; wall: boolean; r: Rand }
+function chest(g: THREE.Object3D, { a, dp, h, c, name }: ModelSpec, leg: number, maxRows: number) {
+  const surface = /painted/.test(name) ? (k: number) => M(shade(c, k), 0.7) : (k: number) => wood(shade(c, k)); // paint is matte, with no grain
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) bxm(g, 1.6, leg, 1.6, sx * (a / 2 - 1.4), 0, sz * (dp / 2 - 1.4), surface(-0.35));
   bxm(g, a, h - leg - 1, dp - 0.7, 0, leg, -0.35, surface(0));
   bxm(g, a, 1, dp, 0, h - 1, 0, surface(-0.12), 0.2);
   fronts(g, a - 1.2, leg + 0.6, h - 1.5, dp / 2 - 0.7, clamp(Math.round((h - leg) / 9), 1, maxRows), a > 44 ? 2 : 1, surface(0.14), "knob");
 }
-const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
-const MODELS = {
+const MODELS: Record<Kind, (g: THREE.Group, x: ModelSpec) => void> = {
   // Femi's bed: grey upholstered frame and channel-tufted headboard, linen sheets and pillows, a sage
   // quilted comforter with shams to match, and the palette's indigo pillow and terracotta throw.
   bed(g, { it, a, dp, h, c }) {
@@ -658,7 +667,7 @@ const MODELS = {
     const sheets = M(THEME.sheets, 0.95);
     bxm(g, a - 2, mh, len - 2, 0, mBot, zc, sheets, 1.8);
     const dl = len * 0.7, side = M(c, 0.95);
-    const duvet = bxm(g, a + 0.8, mh * 0.8 + 1.2, dl, 0, h - mh * 0.8, foot - dl / 2 + 0.3, side, 1.6);
+    const duvet = bxm(g, a + 0.8, mh * 0.8 + 1.2, dl, 0, h - mh * 0.8, foot - dl / 2 + 0.3, side, 1.6)!;
     duvet.material = [side, side, quiltMat(c, (a + 0.8) / dl), side, side, side];
     bxm(g, a + 1, 1.4, 7, 0, h + 0.5, foot - dl + 2, sheets, 0.6); // sheet turned down over the comforter
     // linen sleeping pillows standing against the headboard, the comforter's quilted shams leaning on
@@ -673,7 +682,7 @@ const MODELS = {
     // down each long side and just over the foot end (above the bench) where there is room for it,
     // and stops short of the edge where the bed meets a wall or a piece of furniture.
     const lift = 0.5, top = h + 1.2 + lift, half = (a + 0.8) / 2 + lift, r = 1.6 + lift, z1 = foot + 0.3 + lift;
-    const room = throwRoom(it), past = drop => drop + top - h - r + Math.PI * r / 2, open = k => room[k] >= 6;
+    const room = throwRoom(it), past = (drop: number) => drop + top - h - r + Math.PI * r / 2, open = (k: "left" | "right" | "foot") => room[k] >= 6;
     const xL = open("left") ? -(half - r + past(THROW_DROP.side)) : -(half - r - 3);
     const xR = open("right") ? half - r + past(THROW_DROP.side * 0.7) : half - r - 3; // room for the fringe on top
     const zF = open("foot") ? z1 - r + past(THROW_DROP.foot) : z1 - r - 1.5, zH = z1 - r - 20;
@@ -683,8 +692,9 @@ const MODELS = {
     });
     if (hb) {
       bxm(g, a, it.headH, hb, 0, 0, -dp / 2 + hb / 2, frame, 0.8);
+      // the padded face shows only above the mattress, so a headboard no taller than it has none
       const padH = it.headH - h + 2, pad = bxm(g, a - 0.4, padH, 1.2, 0, h - 2, -dp / 2 + hb + 0.6, frame, 0.5);
-      pad.material = [frame, frame, frame, frame, headboardMat(BED_FABRIC, (a - 0.4) / padH), frame];
+      if (pad) pad.material = [frame, frame, frame, frame, headboardMat(BED_FABRIC, (a - 0.4) / padH), frame];
     }
   },
   dresser: (g, x) => chest(g, x, x.h > 20 ? 3.5 : 2, 7),
@@ -707,11 +717,11 @@ const MODELS = {
       const paint = M(c, 0.75), knob = M("#f4f2ec", 0.45), front = dp / 2, half = (a - 0.6) / 2, drawers = h * 0.23, base = 3.4;
       bxm(g, a - 1.2, base, dp - 1.5, 0, 0, -0.75, M(shade(c, -0.3), 0.8));
       bxm(g, a, h - base, dp - 0.8, 0, base, -0.4, paint);
-      const leaf = (x, y, w, ht) => bxm(g, w - 0.25, ht - 0.25, 0.75, x, y, front - 0.3, paint, 0.08);
+      const leaf = (x: number, y: number, w: number, ht: number) => bxm(g, w - 0.25, ht - 0.25, 0.75, x, y, front - 0.3, paint, 0.08);
       leaf(-half / 2, base + 0.3, half, h - base - 0.6);
       leaf(half / 2, base + 0.3 + drawers, half, h - base - 0.6 - drawers);
       for (let i = 0; i < 2; i++) leaf(half / 2, base + 0.3 + i * drawers / 2, half, drawers / 2);
-      const knobAt = (x, y) => { cyl(g, 0.3, 0.3, 1, x, y, front + 0.5, knob, "z", 12); cyl(g, 0.65, 0.65, 0.4, x, y, front + 1.1, knob, "z", 18); };
+      const knobAt = (x: number, y: number) => { cyl(g, 0.3, 0.3, 1, x, y, front + 0.5, knob, "z", 12); cyl(g, 0.65, 0.65, 0.4, x, y, front + 1.1, knob, "z", 18); };
       knobAt(-1.6, h * 0.5); knobAt(1.6, h * 0.5);
       for (let i = 0; i < 2; i++) knobAt(half / 2, base + 0.3 + drawers * (i + 0.7) / 2);
       return;
@@ -791,7 +801,7 @@ const MODELS = {
     const fabric = M(c, 1), feet = 1.6, lid = Math.min(4.5, h * 0.3);
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) bxm(g, 1.8, feet, 1.8, sx * (a / 2 - 2), 0, sz * (dp / 2 - 2), M("#141416", 0.6));
     bxm(g, a, h - feet - lid + 0.4, dp, 0, feet, 0, fabric, 0.5);
-    const top = bxm(g, a + 0.3, lid, dp + 0.3, 0, h - lid, 0, fabric, 1.2);
+    const top = bxm(g, a + 0.3, lid, dp + 0.3, 0, h - lid, 0, fabric, 1.2)!;
     top.material = [fabric, fabric, tuftMat(c, a / dp), fabric, fabric, fabric];
   },
   bench(g, { a, dp, h, c, name, r }) {
@@ -818,9 +828,9 @@ const MODELS = {
   },
   // Leans on the wall: two rails from the floor out front to the wall up top, shelves narrowing as they rise.
   ladder(g, { a, dp, h, c, r }) {
-    const m = wood(c), run = dp - 2, tilt = Math.atan2(run, h), back = -dp / 2 + 0.6, frontAt = y => dp / 2 - 1 - run * (y / h);
+    const m = wood(c), run = dp - 2, tilt = Math.atan2(run, h), back = -dp / 2 + 0.6, frontAt = (y: number) => dp / 2 - 1 - run * (y / h);
     for (const sx of [-1, 1]) {
-      const len = Math.hypot(h, run), rail = bxm(g, 1.4, len, 1.6, 0, 0, 0, m);
+      const len = Math.hypot(h, run), rail = bxm(g, 1.4, len, 1.6, 0, 0, 0, m)!;
       rail.geometry.translate(0, len / 2, 0); // pivot at the rail's foot
       rail.position.set(sx * (a / 2 - 0.7), 0, dp / 2 - 1.8);
       rail.rotation.x = -tilt;
@@ -883,10 +893,10 @@ const MODELS = {
     bxm(g, a - 10, 5, dp - 8, 0, seat - 0.5, 2.5, M(shade(c, 0.12), 1), 2);
     bxm(g, a - 6, h - seat, 6, 0, seat - 1, -dp / 2 + 3, fabric, 2.5);
     for (const sx of [-1, 1]) bxm(g, 5, h * 0.65 - legH, dp - 1, sx * (a / 2 - 2.5), legH, 0.5, fabric, 2.2);
-    bxm(g, a * 0.4, a * 0.34, 4, 0, seat + 3.5, -dp / 2 + 8, M(shade(c, -0.3), 1), 1.8).rotation.x = -0.25;
+    bxm(g, a * 0.4, a * 0.34, 4, 0, seat + 3.5, -dp / 2 + 8, M(shade(c, -0.3), 1), 1.8)!.rotation.x = -0.25;
   },
   rug(g, { a, dp, h, c, name }) {
-    const side = M(shade(c, -0.15), 1), mesh = bxm(g, a, Math.max(h, 0.4), dp, 0, 0, 0, side);
+    const side = M(shade(c, -0.15), 1), mesh = bxm(g, a, Math.max(h, 0.4), dp, 0, 0, 0, side)!;
     mesh.material = [side, side, rugMat(c, name, a / dp), side, side, side];
     mesh.userData.noCast = true;
   },
@@ -904,20 +914,20 @@ const MODELS = {
   art(g, { a, dp, h, name, it }) {
     // an ornate gilt moulding, then a linen liner and the picture. The moulding's rails and rosettes
     // merge into one mesh per material, and flush to the wall it casts no shadow worth drawing.
-    const f = giltFrame(a, h), back = -dp / 2, parts = new Map();
-    const add = (mat, geo, x, y, z) => { geo.translate(x, y, z); parts.set(mat, [...(parts.get(mat) || []), geo]); };
-    const rail = (mat, w, ht, d, x, y, z) => add(mat, new THREE.BoxGeometry(w, ht, d), x, y + ht / 2, z);
+    const f = giltFrame(a, h), back = -dp / 2, parts = new Map<THREE.Material, THREE.BufferGeometry[]>();
+    const add = (mat: THREE.Material, geo: THREE.BufferGeometry, x: number, y: number, z: number) => { geo.translate(x, y, z); parts.set(mat, [...(parts.get(mat) || []), geo]); };
+    const rail = (mat: THREE.Material, w: number, ht: number, d: number, x: number, y: number, z: number) => add(mat, new THREE.BoxGeometry(w, ht, d), x, y + ht / 2, z);
     for (const b of f.bands) {
       const ow = a - 2 * b.inset, side = h - 2 * b.inset - 2 * b.width, w = b.width, z = back + b.rise / 2;
-      const flat = b.tone === "carved" ? null : giltMat(b);
+      const flat = b.tone === "carved" ? null : giltMat(b.tone, b.color);
       for (const y of [b.inset, h - b.inset - w]) rail(flat || carvedMat(ow, w), ow, w, b.rise, 0, y, z);
       for (const s of [-1, 1]) rail(flat || carvedMat(side, w, true), w, side, b.rise, s * (ow - w) / 2, b.inset + w, z);
     }
     if (f.corners) {
       const { d, r, rise } = f.corners, [lip, , , bead] = f.bands;
       for (const x of [d - a / 2, a / 2 - d]) for (const y of [d, h - d]) {
-        add(giltMat(lip), new THREE.CylinderGeometry(r, r, rise, 20).rotateX(Math.PI / 2), x, y, back + rise / 2);
-        add(giltMat(bead), new THREE.SphereGeometry(r * 0.45, 14, 10), x, y, back + rise);
+        add(giltMat("gilt", lip.color), new THREE.CylinderGeometry(r, r, rise, 20).rotateX(Math.PI / 2), x, y, back + rise / 2);
+        add(giltMat("bead", bead.color), new THREE.SphereGeometry(r * 0.45, 14, 10), x, y, back + rise);
       }
     }
     for (const [mat, geos] of parts) {
@@ -931,7 +941,7 @@ const MODELS = {
     if (!photos.length) { bxm(g, pw, ph, 0.06, 0, inset, pz, pictureMat(name, it.id + name, pw / ph)); return; }
     for (const p of photoPanes(photos, pw, ph)) bxm(g, p.w, p.h, 0.06, p.x, inset + p.y, pz, photoMat(p.key, p.w, p.h));
   },
-  textile(g, { a, dp, h, c }) {
+  textile(g, { a, h, c }) {
     cyl(g, 0.5, 0.5, a + 3, 0, h - 0.5, 0, wood("#7a5a3c"), "x");
     bxm(g, a, h - 3.2, 0.25, 0, 2.5, 0, adireMat(c, a / (h - 3.2)));
     for (let x = -a / 2 + 0.5; x < a / 2; x += 1.1) bxm(g, 0.35, 2.6, 0.15, x, 0, 0, M("#ece6d8", 1));
@@ -1003,7 +1013,7 @@ const MODELS = {
     if (/shelf/.test(name) && wall) {
       bxm(g, a, h, dp, 0, 0, 0, wood(c), 0.15);
       for (const sx of [-1, 1]) { bxm(g, 0.7, 5, 0.7, sx * a * 0.35, -5, -dp / 2 + 0.35, DARK_METAL); bxm(g, 0.7, 0.7, dp * 0.7, sx * a * 0.35, -0.7, -dp * 0.15, DARK_METAL); }
-      if (a >= 10) for (let i = 0; i < 3; i++) bxm(g, Math.min(8, a * 0.6), 1 + r() * 0.6, Math.min(5.5, dp - 1), -a * 0.2, h + i * 1.3, 0, M(pick(r, BOOKS), 0.8)).rotation.y = (r() - 0.5) * 0.3;
+      if (a >= 10) for (let i = 0; i < 3; i++) bxm(g, Math.min(8, a * 0.6), 1 + r() * 0.6, Math.min(5.5, dp - 1), -a * 0.2, h + i * 1.3, 0, M(pick(r, BOOKS), 0.8))!.rotation.y = (r() - 0.5) * 0.3;
     } else if (/hook/.test(name)) {
       bxm(g, a, h, 0.8, 0, 0, -dp / 2 + 0.4, wood(c), 0.2);
       const count = Math.max(2, Math.round(a / 5));
@@ -1015,14 +1025,14 @@ const MODELS = {
     } else bxm(g, a, Math.max(h, 0.3), dp, 0, 0, 0, M(c, 0.8), Math.min(0.8, h / 4));
   }
 };
-const FACE_TURN = { S: 0, E: Math.PI / 2, N: Math.PI, W: -Math.PI / 2 };
-function buildItem(it, face) {
+const FACE_TURN: Record<Wall, number> = { S: 0, E: Math.PI / 2, N: Math.PI, W: -Math.PI / 2 };
+function buildItem(it: Item, face: Wall) {
   const g = new THREE.Group(), ns = face === "N" || face === "S", kind = kindOf(it);
   const x = { it, a: ns ? it.w : it.d, dp: ns ? it.d : it.w, h: it.h, c: it.color, name: it.name.toLowerCase(), wall: it.z > 0, r: rng(it.id + it.name) };
   (MODELS[kind] || MODELS.other)(g, x);
   if (kind !== "bed" && it.headH > 0) bxm(g, x.a, it.headH, Math.min(it.headT, x.dp), 0, 0, -x.dp / 2 + Math.min(it.headT, x.dp) / 2, wood(shade(it.color, -0.3)), 0.4);
   g.rotation.y = FACE_TURN[face];
-  g.traverse(o => { if (o.isMesh) { o.castShadow = !o.userData.noCast; o.receiveShadow = true; } });
+  g.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = !o.userData.noCast; o.receiveShadow = true; } });
   return g;
 }
 
@@ -1032,15 +1042,21 @@ const gridG = new THREE.Group(), swingG = new THREE.Group(), ceilingG = new THRE
 const lampG = new THREE.Group();
 scene.add(roomG, itemsG, pickG, overlayG, lampG);
 const WALL_T = 4.5;
-let wallSegs = [], doorLeaves = [], doorPivots = [];
-const doorOpen = {}; // opening id -> { t: how far open, 0..1, want: 0 or 1 }
+interface WallSeg { wall: Wall; horiz: boolean; fixed: number; a0: number; a1: number; n: number; group: THREE.Group }
+interface DoorPivot { swing: DoorSwing; leaf: THREE.Group; shut: number; turn: number }
+let wallSegs: WallSeg[] = [], doorLeaves: THREE.Mesh[] = [], doorPivots: DoorPivot[] = [];
+const doorOpen: Record<string, DoorSwing> = {}; // opening id -> { t: how far open, 0..1, want: 0 or 1 }
 const show = { grid: false, swings: true, names: false, lamps: false };
-let wallMode = "auto";
+type Toggle = keyof typeof show;
+// Which switch a control flips, read from its data-toggle.
+const toggleOf = (el: HTMLElement | SVGElement): Toggle | null => { const k = el.dataset.toggle; return k && Object.hasOwn(show, k) ? k as Toggle : null; };
+type WallMode = "auto" | "all" | "none";
+let wallMode: WallMode = "auto";
 
 // Old-growth fir boards, a warm orange-brown with a soft sheen, as in Femi's photos.
 const floorMat = new THREE.MeshStandardMaterial({ roughness: 0.4, map: (() => {
   const t = canvasTex(1024, 1024, (g, w, h) => {
-    const r = rng("floor"), rows = 8, ph = h / rows, fir = col(THEME.floor).getHSL({}, THREE.SRGBColorSpace);
+    const r = rng("floor"), rows = 8, ph = h / rows, fir = col(THEME.floor).getHSL({ h: 0, s: 0, l: 0 }, THREE.SRGBColorSpace);
     for (let i = 0; i < rows; i++) {
       for (let x = -r() * w * 0.5; x < w;) {
         const len = w * (0.35 + r() * 0.4);
@@ -1058,8 +1074,8 @@ const floorMat = new THREE.MeshStandardMaterial({ roughness: 0.4, map: (() => {
   return t;
 })() });
 // Point on a wall: u along it, up the wall, v out from its inside face into the room.
-const onWall = (s, u, up, v) => s.horiz ? new THREE.Vector3(u, up, s.fixed + s.n * v) : new THREE.Vector3(s.fixed + s.n * v, up, u);
-function wbox(s, u0, u1, y0, y1, v0, v1, m, parent = s.group) {
+const onWall = (s: WallSeg, u: number, up: number, v: number) => s.horiz ? new THREE.Vector3(u, up, s.fixed + s.n * v) : new THREE.Vector3(s.fixed + s.n * v, up, u);
+function wbox(s: WallSeg, u0: number, u1: number, y0: number, y1: number, v0: number, v1: number, m: THREE.Material, parent: THREE.Object3D = s.group) {
   if (!(u1 > u0 && y1 > y0)) return null;
   const along = u1 - u0, thick = Math.abs(v1 - v0);
   const mesh = new THREE.Mesh(s.horiz ? new THREE.BoxGeometry(along, y1 - y0, thick) : new THREE.BoxGeometry(thick, y1 - y0, along), m);
@@ -1069,7 +1085,7 @@ function wbox(s, u0, u1, y0, y1, v0, v1, m, parent = s.group) {
   parent.add(mesh);
   return mesh;
 }
-function buildOpening(s, o, u0, u1) {
+function buildOpening(s: WallSeg, o: Opening, u0: number, u1: number) {
   const top = Math.min(o.sill + o.h, state.room.H);
   // casing round the hole, on the room side
   wbox(s, u0 - 3, u0, o.sill, top + 3, 0, 0.7, TRIM); wbox(s, u1, u1 + 3, o.sill, top + 3, 0, 0.7, TRIM);
@@ -1080,7 +1096,7 @@ function buildOpening(s, o, u0, u1) {
     wbox(s, u0, u1, o.sill, top, -WALL_T - 0.2, -WALL_T, SKY);
     wbox(s, u0 + 1.5, u1 - 1.5, o.sill + 1.5, top - 1.5, -2.5, -2.2, GLASS);
     for (const [a, b, c, d] of [[u0, u0 + 1.8, o.sill, top], [u1 - 1.8, u1, o.sill, top], [u0, u1, o.sill, o.sill + 1.8], [u0, u1, top - 1.8, top],
-      [u0, u1, (o.sill + top) / 2 - 0.7, (o.sill + top) / 2 + 0.7], [(u0 + u1) / 2 - 0.5, (u0 + u1) / 2 + 0.5, o.sill, top]]) wbox(s, a, b, c, d, -3.2, -1.4, TRIM);
+      [u0, u1, (o.sill + top) / 2 - 0.7, (o.sill + top) / 2 + 0.7], [(u0 + u1) / 2 - 0.5, (u0 + u1) / 2 + 0.5, o.sill, top]] as const) wbox(s, a, b, c, d, -3.2, -1.4, TRIM);
     return;
   }
   const sw = swingGeom(o), w = u1 - u0, h = top - o.sill, leaf = new THREE.Group(), white = M("#f7f5ef", 0.5);
@@ -1088,8 +1104,8 @@ function buildOpening(s, o, u0, u1) {
   const pw = w - 12, ph = (h - 24) / 2;
   if (pw > 6 && ph > 6) for (const y of [8, 15 + ph]) bxm(leaf, pw, ph, 1.9, w / 2, y, 0, M("#efece4", 0.5), 0.3);
   for (const z of [-1.5, 1.5]) { ball(leaf, 1.1, w - 3.5, 36, z, BRASS); cyl(leaf, 0.4, 0.4, 1.2, w - 3.5, 36, z * 0.6, BRASS, "z", 10); }
-  leaf.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; m.userData.door = o.id; } });
-  doorLeaves.push(slab);
+  leaf.traverse(m => { if (m instanceof THREE.Mesh) { m.castShadow = true; m.receiveShadow = true; m.userData.door = o.id; } });
+  if (slab) doorLeaves.push(slab); // an opening squeezed to nothing has no leaf to click
   // The leaf hangs from its hinge and lies along +x; turning it lays it across the opening or swings it open.
   const hinge = sw ? o.hinge === "start" ? u0 : u1 : u0, far = sw ? o.hinge === "start" ? u1 : u0 : u1;
   const hp = onWall(s, hinge, o.sill, -1), fp = onWall(s, far, o.sill, -1);
@@ -1098,21 +1114,20 @@ function buildOpening(s, o, u0, u1) {
   if (sw) {
     const open = Math.atan2(-(sw.oy - sw.hy), sw.ox - sw.hx);
     turn = Math.atan2(Math.sin(open - shut), Math.cos(open - shut));
-    doorOpen[o.id] ??= { t: 0, want: 0 };
-    doorPivots.push({ id: o.id, leaf, shut, turn });
+    doorPivots.push({ swing: doorOpen[o.id] ??= { t: 0, want: 0 }, leaf, shut, turn });
   }
   leaf.position.copy(hp);
   leaf.rotation.y = shut + turn * (doorOpen[o.id]?.t ?? 0);
   s.group.add(leaf);
 }
 // The quarter circle of floor a hinged door sweeps over, shaded with its outline.
-function swingFan(group, sw, c) {
+function swingFan(group: THREE.Object3D, sw: Swing, c: string) {
   const a0 = Math.atan2(sw.fy - sw.hy, sw.fx - sw.hx), a1 = Math.atan2(sw.oy - sw.hy, sw.ox - sw.hx), da = Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0));
-  const fan = [], edge = [];
+  const fan: number[] = [], edge: THREE.Vector3[] = [];
   for (let i = 0; i <= 24; i++) {
     const a = a0 + da * i / 24, x = sw.hx + Math.cos(a) * sw.r, z = sw.hy + Math.sin(a) * sw.r;
     edge.push(new THREE.Vector3(x, 0.14, z));
-    if (i) fan.push(sw.hx, 0.12, sw.hy, edge[i - 1].x, 0.12, edge[i - 1].z, x, 0.12, z);
+    if (i) fan.push(sw.hx, 0.12, sw.hy, edge[i - 1]!.x, 0.12, edge[i - 1]!.z, x, 0.12, z);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(fan, 3));
@@ -1123,11 +1138,11 @@ function buildRoom() {
   wipe(roomG); wipe(gridG); wipe(swingG); wipe(ceilingG);
   wallSegs = []; doorLeaves = []; doorPivots = [];
   const { W, L, bx, by, H } = state.room, bump = bx > 0 && by > 0;
-  const rects = bump ? [[0, 0, W - bx, L], [W - bx, by, W, L]] : [[0, 0, W, L]];
+  const rects: [number, number, number, number][] = bump ? [[0, 0, W - bx, L], [W - bx, by, W, L]] : [[0, 0, W, L]];
   for (const [x0, z0, x1, z1] of rects) {
     const geo = new THREE.BoxGeometry(x1 - x0, 1, z1 - z0);
     geo.translate((x0 + x1) / 2, -0.5, (z0 + z1) / 2);
-    const pos = geo.attributes.position, uv = geo.attributes.uv;
+    const pos = geo.attributes.position!, uv = geo.attributes.uv!;
     for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getZ(i) / 44, pos.getX(i) / 44);
     const floor = new THREE.Mesh(geo, floorMat);
     floor.receiveShadow = true;
@@ -1138,7 +1153,7 @@ function buildRoom() {
   }
   cyl(ceilingG, 7, 6, 2.4, (W - bx) / 2, H - 1.2, L / 2, cached("fixture", () => new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff0cf, emissiveIntensity: 0.9 })), "y", 32);
   // each wall run: which wall, its fixed coordinate, its span, the way in, and how far to run past its ends to close the corners
-  const runs = [["N", true, 0, 0, bump ? W - bx : W, 1, WALL_T, WALL_T], ["S", true, L, 0, W, -1, WALL_T, WALL_T],
+  const runs: [Wall, boolean, number, number, number, number, number, number][] = [["N", true, 0, 0, bump ? W - bx : W, 1, WALL_T, WALL_T], ["S", true, L, 0, W, -1, WALL_T, WALL_T],
     ["W", false, 0, 0, L, 1, 0, 0], ["E", false, W, bump ? by : 0, L, -1, bump ? WALL_T : 0, 0]];
   if (bump) runs.push(["N", true, by, W - bx, W, 1, 0, 0], ["E", false, W - bx, 0, by, -1, 0, 0]);
   for (const [wall, horiz, fixed, a0, a1, nn, e0, e1] of runs) {
@@ -1146,7 +1161,7 @@ function buildRoom() {
     const holes = state.openings.filter(o => { const g = opSeg(o); return o.wall === wall && (horiz ? g.y1 : g.x1) === fixed; })
       .map(o => ({ o, u0: Math.max(o.off, a0), u1: Math.min(o.off + o.w, a1) })).filter(x => x.u1 > x.u0).sort((p, q) => p.u0 - q.u0);
     let at = a0 - e0;
-    const solid = (u0, u1) => { wbox(s, u0, u1, 0, H, -WALL_T, 0, WALL); wbox(s, Math.max(u0, a0), Math.min(u1, a1), 0, 4, 0, 0.6, TRIM); };
+    const solid = (u0: number, u1: number) => { wbox(s, u0, u1, 0, H, -WALL_T, 0, WALL); wbox(s, Math.max(u0, a0), Math.min(u1, a1), 0, 4, 0, 0.6, TRIM); };
     for (const { o, u0, u1 } of holes) {
       const top = Math.min(o.sill + o.h, H);
       solid(at, u0);
@@ -1160,7 +1175,7 @@ function buildRoom() {
     roomG.add(s.group);
   }
   // 12-inch grid on the floor
-  const pts = [];
+  const pts: number[] = [];
   for (const [x0, z0, x1, z1] of rects) {
     for (let x = Math.ceil(x0 / 12) * 12; x <= x1; x += 12) pts.push(x, 0.08, z0, x, 0.08, z1);
     for (let z = Math.ceil(z0 / 12) * 12; z <= z1; z += 12) pts.push(x0, 0.08, z, x1, 0.08, z);
@@ -1189,7 +1204,7 @@ function updateWalls() {
   for (const s of wallSegs) s.group.visible = wallMode === "all" || (wallMode === "auto" && (inside || ((s.horiz ? p.z : p.x) - s.fixed) * s.n > 0));
   // so does anything hung on it, which would otherwise show its back
   for (const b of built.values()) b.group.visible = !b.seg || wallMode === "none" || b.seg.group.visible;
-  for (const o of overlayG.children) if (o.userData.of) o.visible = built.get(o.userData.of).group.visible;
+  for (const o of overlayG.children) if (o.userData.of) o.visible = built.get(o.userData.of)!.group.visible;
   ceilingG.visible = inside;
   // a wider lens indoors, where there is no room to step back
   const fov = inside ? 62 : 40;
@@ -1207,8 +1222,8 @@ function lamplight() {
   SHADE.emissiveIntensity = night ? 2.4 : 0.55;
   SHADE.emissive.set(night ? colour : 0xffcf7a);
   SKY.color.set(night ? 0x1c2534 : 0xd9ecf7);
-  if (matCache.has("fixture")) matCache.get("fixture").emissiveIntensity = night ? 0 : 0.9;
-  for (const l of [...lampG.children]) { l.dispose(); lampG.remove(l); }
+  if (matCache.has("fixture")) (matCache.get("fixture") as THREE.MeshStandardMaterial).emissiveIntensity = night ? 0 : 0.9;
+  for (const l of [...lampG.children]) { if (l instanceof THREE.PointLight) l.dispose(); lampG.remove(l); }
   if (!night) return;
   // the same bulbs, places and lumens as the core's light estimate
   for (const l of lightSources(state.items)) {
@@ -1221,52 +1236,54 @@ function lamplight() {
 /* ---------- bulb colour for lamps-only: a white temperature or any colour ---------- */
 const BULB_KEY = "bedroom-planner-bulb";
 let bulb = { mode: "white", kelvin: 2700, rgb: "#ff4fa3" };
-try { Object.assign(bulb, JSON.parse(localStorage.getItem(BULB_KEY)) || {}); } catch { /* a viewer without storage keeps the default */ }
-const bulbColour = () => bulb.mode === "white" ? new THREE.Color(...kelvinRGB(bulb.kelvin).map(v => v / 255)).convertSRGBToLinear() : new THREE.Color(bulb.rgb);
-function setBulb(change) {
+try { Object.assign(bulb, JSON.parse(localStorage.getItem(BULB_KEY) ?? "null") || {}); } catch { /* a viewer without storage keeps the default */ }
+const bulbColour = () => bulb.mode === "white" ? new THREE.Color(...kelvinRGB(bulb.kelvin).map(v => v / 255) as [number, number, number]).convertSRGBToLinear() : new THREE.Color(bulb.rgb);
+function setBulb(change: Partial<typeof bulb>) {
   Object.assign(bulb, change);
   try { localStorage.setItem(BULB_KEY, JSON.stringify(bulb)); } catch { /* not saved; still shown */ }
   drawBulb();
   lamplight();
 }
+const kelvinInput = $<HTMLInputElement>("#kelvin"), colourInput = $<HTMLInputElement>("#bulbColor");
 function drawBulb() {
-  const box = document.getElementById("bulbCtl");
+  const box = $("#bulbCtl");
   box.hidden = !show.lamps;
-  document.getElementById("kelvin").value = bulb.kelvin;
-  document.getElementById("kelvinVal").textContent = bulb.kelvin + "K";
-  document.getElementById("bulbColor").value = bulb.rgb;
+  kelvinInput.value = String(bulb.kelvin);
+  $("#kelvinVal").textContent = bulb.kelvin + "K";
+  colourInput.value = bulb.rgb;
   box.dataset.mode = bulb.mode;
-  for (const b of box.querySelectorAll("[data-bulb-mode]")) b.classList.toggle("on", b.dataset.bulbMode === bulb.mode);
+  for (const b of box.querySelectorAll<HTMLElement>("[data-bulb-mode]")) b.classList.toggle("on", b.dataset.bulbMode === bulb.mode);
   // the switch's dot glows in the bulbs' colour
   const [r, g, b] = bulb.mode === "white" ? kelvinRGB(bulb.kelvin) : [1, 3, 5].map(i => parseInt(bulb.rgb.slice(i, i + 2), 16));
-  box.parentElement.style.setProperty("--bulb", `rgb(${r} ${g} ${b})`);
+  box.parentElement!.style.setProperty("--bulb", `rgb(${r} ${g} ${b})`);
 }
 // The temperature slider's track runs through the whites it picks, warm to cool.
-document.getElementById("kelvin").style.setProperty("--kelvin-track",
+kelvinInput.style.setProperty("--kelvin-track",
   `linear-gradient(to right, ${[2500, 3000, 3500, 4000, 4500, 5000, 5500, 6000, 6500].map(k => `rgb(${kelvinRGB(k).join(" ")})`).join(", ")})`);
-document.getElementById("bulbCtl").addEventListener("click", e => {
-  const mode = e.target.dataset.bulbMode;
+$("#bulbCtl").addEventListener("click", e => {
+  const mode = targetOf(e).dataset.bulbMode;
   if (mode) setBulb({ mode });
 });
-document.getElementById("kelvin").addEventListener("input", e => setBulb({ mode: "white", kelvin: +e.target.value }));
-document.getElementById("bulbColor").addEventListener("input", e => setBulb({ mode: "colour", rgb: e.target.value }));
+kelvinInput.addEventListener("input", () => setBulb({ mode: "white", kelvin: +kelvinInput.value }));
+colourInput.addEventListener("input", () => setBulb({ mode: "colour", rgb: colourInput.value }));
 
 /* ---------- keeping the scene in step with the layout ---------- */
-const built = new Map(); // item id -> { key, group }
+interface Built { key: string; group: THREE.Group; seg?: WallSeg | null }
+const built = new Map<string, Built>(); // item id -> { key, group }
 let roomKey = "";
 const unitBox = new THREE.BoxGeometry(1, 1, 1), unitEdges = new THREE.EdgesGeometry(unitBox);
 unitBox.userData.shared = unitEdges.userData.shared = true;
 const pickMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false });
-const lineMat = (c, top) => cached(`line${c}/${top}`, () => new THREE.LineBasicMaterial({ color: c, depthTest: !top, transparent: true }));
+const lineMat = (c: string, top: boolean) => cached(`line${c}/${top}`, () => new THREE.LineBasicMaterial({ color: c, depthTest: !top, transparent: true }));
 const dashMat = cached("dash", () => new THREE.LineDashedMaterial({ color: ACCENT, dashSize: 3, gapSize: 2, depthTest: false, transparent: true }));
-function fitBox(mesh, p, grow = 0) {
+function fitBox<T extends THREE.Object3D>(mesh: T, p: Part, grow = 0): T {
   const h = Math.max(p.h, 0.6);
   mesh.scale.set(p.w + grow, h + grow, p.d + grow);
   mesh.position.set(p.x + p.w / 2, p.z + h / 2, p.y + p.d / 2);
   return mesh;
 }
 // The wall run a thin piece is hung on, or null for anything standing in the room.
-function hungOn(it, face) {
+function hungOn(it: Item, face: Wall) {
   const back = OPPOSITE[face], c = clearances(it);
   if ((back === "N" || back === "S" ? it.d : it.w) > 4 || c[back] > state.room.flush) return null;
   const fixed = { N: c.northWall, E: c.eastWall, S: state.room.L, W: 0 }[back];
@@ -1317,7 +1334,7 @@ function sync() {
   const it = sel();
   if (!it) return;
   const c = clearances(it), cx = it.x + it.w / 2, cz = it.y + it.d / 2, y = 0.5;
-  const gap = (x1, z1, x2, z2, v) => {
+  const gap = (x1: number, z1: number, x2: number, z2: number, v: number) => {
     if (v <= 0.5) return;
     const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x1, y, z1), new THREE.Vector3(x2, y, z2)]), dashMat);
     line.computeLineDistances();
@@ -1334,10 +1351,11 @@ function sync() {
 }
 
 /* ---------- camera ---------- */
-let flight = null;
-function pose(view) {
+interface Flight { p0: THREE.Vector3; t0: THREE.Vector3; p1: THREE.Vector3; t1: THREE.Vector3; start: number }
+let flight: Flight | null = null;
+function pose(view: string): [THREE.Vector3, THREE.Vector3] {
   const { W, L, H } = state.room, cx = W / 2, cz = L / 2, span = Math.max(W, L), eye = H * 0.5, far = span * 1.15;
-  const v = (x, y, z) => new THREE.Vector3(x, y, z);
+  const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
   if (view === "top") return [v(cx, span * 2.5, cz + 0.6), v(cx, 0, cz)];
   if (view === "N") return [v(cx, eye, L + far), v(cx, eye * 0.9, 0)];
   if (view === "S") return [v(cx, eye, -far), v(cx, eye * 0.9, L)];
@@ -1350,7 +1368,7 @@ function pose(view) {
   }
   return [v(cx + span * 1.0, H * 2.1, cz + span * 1.25), v(cx, H * 0.2, cz)];
 }
-function fly(view, instant) {
+function fly(view: string, instant?: boolean) {
   const [p, t] = pose(view);
   // step back in a narrow window so the whole room still fits
   if (view !== "inside") p.sub(t).multiplyScalar(Math.max(1, 1.1 / camera.aspect) * (shot ? 1.1 : 1)).add(t);
@@ -1361,22 +1379,24 @@ controls.addEventListener("start", () => { flight = null; });
 // Arrow keys follow the screen: up is away from the camera, snapped to the nearest compass direction.
 hooks.nudge = (dx, dy) => {
   const f = controls.target.clone().sub(camera.position);
-  const fwd = Math.abs(f.x) > Math.abs(f.z) ? [Math.sign(f.x), 0] : [0, Math.sign(f.z) || -1];
+  const fwd: [number, number] = Math.abs(f.x) > Math.abs(f.z) ? [Math.sign(f.x), 0] : [0, Math.sign(f.z) || -1];
   return [-fwd[1] * dx - fwd[0] * dy, fwd[0] * dx - fwd[1] * dy];
 };
 
 /* ---------- pointer ---------- */
-const ray = new THREE.Raycaster(), tip = document.getElementById("tip");
-let drag = null, press = null;
-const shown = o => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
-function aim(e) {
+const ray = new THREE.Raycaster(), tip = $("#tip");
+interface Drag { it: Item; lift: boolean; x: number; y: number; z: number; from: THREE.Vector3; plane: THREE.Plane }
+interface Press { x: number; y: number; moved: boolean; door: string | null; item: string | null }
+let drag: Drag | null = null, press: Press | null = null;
+const shown = (o: THREE.Object3D | null) => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
+function aim(e: MouseEvent) {
   const b = canvas.getBoundingClientRect();
   ray.setFromCamera(new THREE.Vector2((e.clientX - b.left) / b.width * 2 - 1, -(e.clientY - b.top) / b.height * 2 + 1), camera);
 }
-function hitAt(e) {
+function hitAt(e: MouseEvent) {
   aim(e);
   scene.updateMatrixWorld(); // pieces moved since the last frame are hit where they are now
-  const seen = h => shown(h.object) && (!h.object.userData.id || built.get(h.object.userData.id).group.visible);
+  const seen = (h: THREE.Intersection) => shown(h.object) && (!h.object.userData.id || built.get(h.object.userData.id)!.group.visible);
   return ray.intersectObjects([...pickG.children, ...doorLeaves], false).find(seen) || null;
 }
 // Runs before the orbit controls see the press, so grabbing a piece never also turns the camera.
@@ -1388,7 +1408,7 @@ canvas.addEventListener("pointerdown", e => {
   if (!id) { press.door = hit ? hit.object.userData.door : null; return; }
   if (viewer) { press.item = id; return; } // a viewer only looks: the press turns the room instead
   if (selId !== id) select(id);
-  const it = sel(), lift = e.shiftKey, look = camera.getWorldDirection(new THREE.Vector3());
+  const it = sel()!, lift = e.shiftKey, look = camera.getWorldDirection(new THREE.Vector3());
   const normal = lift ? new THREE.Vector3(look.x, 0, look.z).normalize() : new THREE.Vector3(0, 1, 0);
   drag = { it, lift, x: it.x, y: it.y, z: it.z, from: hit.point.clone(), plane: new THREE.Plane().setFromNormalAndCoplanarPoint(normal, hit.point) };
   controls.enabled = false;
@@ -1413,12 +1433,12 @@ canvas.addEventListener("pointermove", e => {
   canvas.style.cursor = hit ? (it ? "grab" : "pointer") : "";
   tip.hidden = !hit;
   if (!hit) return;
-  const door = !it && state.openings.find(o => o.id === hit.object.userData.door);
-  tip.textContent = it ? `${it.name} · ${fmt(it.w)} × ${fmt(it.d)} × ${fmt(it.h)}` : `${door.name} · click to ${doorOpen[door.id]?.want ? "close" : "open"}`;
+  const door = it ? undefined : state.openings.find(o => o.id === hit.object.userData.door);
+  tip.textContent = it ? `${it.name} · ${fmt(it.w)} × ${fmt(it.d)} × ${fmt(it.h)}` : door ? `${door.name} · click to ${doorOpen[door.id]?.want ? "close" : "open"}` : "";
   placeTip(e.clientX, e.clientY);
 });
 // Keeps the tip inside the stage, where a phone's narrow screen would otherwise cut it off.
-function placeTip(cx, cy) {
+function placeTip(cx: number, cy: number) {
   const b = stage.getBoundingClientRect();
   tip.style.left = clamp(cx - b.left, 0, Math.max(b.width - tip.offsetWidth - 16, 0)) + "px";
   tip.style.top = cy - b.top + "px";
@@ -1426,9 +1446,9 @@ function placeTip(cx, cy) {
 function release() {
   if (drag) { drag = null; controls.enabled = true; }
   else if (press && !press.moved) {
-    const it = press.item && state.items.find(i => i.id === press.item);
+    const it = press.item && state.items.find(i => i.id === press!.item), pressedDoor = press.door ? doorOpen[press.door] : undefined;
     if (it) { tip.textContent = `${it.name} · ${fmt(it.w)} × ${fmt(it.d)} × ${fmt(it.h)}`; tip.hidden = false; placeTip(press.x, press.y); }
-    else if (press.door && doorOpen[press.door]) doorOpen[press.door].want = doorOpen[press.door].want ? 0 : 1;
+    else if (pressedDoor) pressedDoor.want = pressedDoor.want ? 0 : 1;
     else if (selId) select(null);
   }
   press = null;
@@ -1439,12 +1459,14 @@ canvas.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") ti
 
 /* ---------- toolbar ---------- */
 const WALL_LABEL = { auto: "Walls: near ones hidden", all: "Walls: all shown", none: "Walls: hidden" };
-const viewSel = document.getElementById("viewSel"), showMenu = document.getElementById("showMenu");
+const viewSel = $<HTMLSelectElement>("#viewSel"), showMenu = $<HTMLDetailsElement>("#showMenu");
 function drawBar() {
-  document.getElementById("wallBtn").textContent = WALL_LABEL[wallMode];
-  for (const b of document.querySelectorAll("[data-toggle]")) {
-    if (b.type === "checkbox") b.checked = show[b.dataset.toggle];
-    else b.classList.toggle("on", show[b.dataset.toggle]);
+  $("#wallBtn").textContent = WALL_LABEL[wallMode];
+  for (const b of document.querySelectorAll<HTMLInputElement | HTMLButtonElement>("[data-toggle]")) {
+    const k = toggleOf(b);
+    if (!k) continue;
+    if (b.type === "checkbox") b.checked = show[k];
+    else b.classList.toggle("on", show[k]);
   }
   drawBulb();
 }
@@ -1452,15 +1474,16 @@ viewSel.addEventListener("change", () => { if (viewSel.value) fly(viewSel.value)
 // Turning the camera by hand leaves the named view, so picking it again flies back.
 controls.addEventListener("start", () => { viewSel.value = ""; });
 showMenu.addEventListener("change", e => {
-  const k = e.target.dataset.toggle;
-  if (k) { show[k] = e.target.checked; sync(); drawBar(); }
+  const el = formField(e), k = el && toggleOf(el);
+  if (el instanceof HTMLInputElement && k) { show[k] = el.checked; sync(); drawBar(); }
 });
-document.addEventListener("pointerdown", e => { if (showMenu.open && !showMenu.contains(e.target)) showMenu.open = false; });
-document.getElementById("bar").addEventListener("click", e => {
-  const b = e.target.closest("button");
+document.addEventListener("pointerdown", e => { if (showMenu.open && !showMenu.contains(e.target as Node)) showMenu.open = false; });
+$("#bar").addEventListener("click", e => {
+  const b = targetOf(e).closest("button");
   if (!b) return;
-  if (b.dataset.toggle) { show[b.dataset.toggle] = !show[b.dataset.toggle]; sync(); }
-  else if (b.id === "wallBtn") wallMode = { auto: "all", all: "none", none: "auto" }[wallMode];
+  const k = toggleOf(b);
+  if (k) { show[k] = !show[k]; sync(); }
+  else if (b.id === "wallBtn") wallMode = ({ auto: "all", all: "none", none: "auto" } as const)[wallMode];
   drawBar();
 });
 
@@ -1468,8 +1491,8 @@ document.getElementById("bar").addEventListener("click", e => {
 // On a phone the page only shows: the layouts are tabs, the editing panel is gone, a drag
 // turns the room and a tap names a piece. Editing stays on a wider screen.
 const viewerQuery = matchMedia("(max-width: 760px), (max-height: 500px)");
-const help = document.getElementById("help"), editHelp = help.textContent;
-const tabs = document.getElementById("tabs"), about = document.getElementById("about");
+const help = $("#help"), editHelp = help.textContent;
+const tabs = $("#tabs"), about = $("#about");
 let viewer = false;
 function setViewer() {
   viewer = viewerQuery.matches && !shot;
@@ -1480,13 +1503,13 @@ function setViewer() {
 function drawTabs() {
   const cur = currentPlan();
   tabs.innerHTML = BUILTIN.map(p => `<button data-plan="${p.id}" class="${p === cur ? "on" : ""}">${esc(p.name)}</button>`).join("");
-  document.getElementById("aboutText").textContent = cur && cur.why || "";
+  $("#aboutText").textContent = cur && cur.why || "";
   about.hidden = !(cur && cur.why);
   tabs.querySelector(".on")?.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 tabs.addEventListener("click", e => {
-  const b = e.target.closest("button[data-plan]");
-  if (b) openPlan(BUILTIN.find(p => p.id === b.dataset.plan));
+  const b = targetOf(e).closest<HTMLButtonElement>("button[data-plan]");
+  if (b) openPlan(BUILTIN.find(p => p.id === b.dataset.plan)!);
 });
 viewerQuery.addEventListener("change", setViewer);
 
@@ -1503,7 +1526,7 @@ function resize() {
 }
 new ResizeObserver(resize).observe(stage);
 let last = performance.now();
-function frame(now) {
+function frame(now: number) {
   const elapsed = now - last;
   last = now;
   if (flight) {
@@ -1513,7 +1536,7 @@ function frame(now) {
     if (k === 1) flight = null;
   }
   for (const d of doorPivots) {
-    const s = doorOpen[d.id];
+    const s = d.swing;
     stepDoor(s, elapsed);
     d.leaf.rotation.y = d.shut + d.turn * s.t * s.t * (3 - 2 * s.t);
   }
@@ -1539,16 +1562,17 @@ addEventListener("beforeprint", () => { if (!printShot.src) takePrintShot(); });
 addEventListener("afterprint", () => printShot.removeAttribute("src"));
 setViewer();
 initPlanner();
-document.getElementById("keysHint").textContent = "Arrow keys nudge 1″ the way they point on screen (Shift = 6″), R rotates, Shift+R turns 15° (bean bags, plants, lamps and rugs), Delete removes, Esc deselects. Solid pieces stop at walls and at each other. A red outline means a piece blocks a door swing, a room door's or a wardrobe's, or overlaps something.";
+$("#keysHint").textContent = "Arrow keys nudge 1″ the way they point on screen (Shift = 6″), R rotates, Shift+R turns 15° (bean bags, plants, lamps and rugs), Delete removes, Esc deselects. Solid pieces stop at walls and at each other. A red outline means a piece blocks a door swing, a room door's or a wardrobe's, or overlaps something.";
 drawBar();
 resize();
 fly("3d", true);
 requestAnimationFrame(frame);
 // For checking the page from the console and from tests.
+declare global { interface Window { __planner: Record<string, unknown> } }
 window.__planner = {
   THREE, scene, camera, controls, built, doorOpen, fly,
   // where a point in the room lands on the page, in client pixels
-  toScreen(x, up, z) {
+  toScreen(x: number, up: number, z: number) {
     camera.updateMatrixWorld();
     const p = new THREE.Vector3(x, up, z).project(camera), b = canvas.getBoundingClientRect();
     return { x: b.left + (p.x + 1) / 2 * b.width, y: b.top + (1 - p.y) / 2 * b.height };

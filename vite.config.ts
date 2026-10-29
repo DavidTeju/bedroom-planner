@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   build: {
@@ -8,5 +8,5 @@ export default defineConfig({
   },
   server: { host: "127.0.0.1", port: 4731, strictPort: true },
   preview: { host: "127.0.0.1", port: 4731, strictPort: true },
-  test: { include: ["tests/**/*.test.js"], environment: "node" }
+  test: { include: ["tests/**/*.test.ts"], environment: "node" }
 });

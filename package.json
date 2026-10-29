@@ -2,18 +2,25 @@
   "name": "bedroom-planner",
   "private": true,
   "description": "2D and 3D planner for a bedroom, built from its measurements",
+  "license": "MIT",
+  "repository": "github:DavidTeju/bedroom-planner",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "tsc -p . --noEmit && vitest run",
     "deploy": "deploy/deploy.sh"
   },
   "dependencies": {
     "three": "0.170.0"
   },
   "devDependencies": {
+    "@davidteju/dev-config": "github:DavidTeju/dev-config",
+    "@types/node": "24.19.2",
+    "@types/three": "0.170.0",
+    "typescript": "7.0.2",
     "vite": "8.3.4",
     "vitest": "5.0.4"
   }

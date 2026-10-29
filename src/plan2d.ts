@@ -1,20 +1,25 @@
-import { $, alongWall, buildSelForm, canTurn, clearances, draw, ENDS, esc, footprint, ftin, giltFrame, hooks, initPlanner, isBad, kindOf, lightReport, luxColor, moveTo, n, opSeg, parts, photoPanes, PRINTS, READ_LUX, ROOM_LUX, sel, select, selId, state, swingGeom, tier, turnOf, wallGap, WALLS, wardrobeSwings } from "./core.js";
-const VIEWS = ["plan", "N", "E", "S", "W"];
-let mainView = "plan", showLight = false;
-let lastLight = null;
+import { $, alongWall, buildSelForm, canTurn, clearances, draw, ENDS, esc, footprint, ftin, giltFrame, hooks, initPlanner, isBad, kindOf, lightReport, luxColor, moveTo, n, opSeg, parts, photoPanes, PRINTS, READ_LUX, ROOM_LUX, sel, select, selId, state, swingGeom, tier, turnOf, wallGap, WALLS, wardrobeSwings, targetOf } from "./core.ts";
+import type { LightReport, Part, Segment } from "./core.ts";
+import type { Item, Opening, Wall } from "./types.ts";
+import { among, WALL_SIDES } from "./types.ts";
+// The floor plan, or a wall seen from inside the room.
+const VIEWS = ["plan", ...WALL_SIDES] as const;
+type View = (typeof VIEWS)[number];
+let mainView: View = "plan", showLight = false;
+let lastLight: LightReport | null = null;
 
-const box = (x, y, w, h, cls = "deco", rx = 0) => w > 0 && h > 0 ? `<rect class="${cls}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}"/>` : "";
-const seg = (x1, y1, x2, y2, cls = "deco") => `<line class="${cls}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
-const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+const box = (x: number, y: number, w: number, h: number, cls = "deco", rx = 0): string => w > 0 && h > 0 ? `<rect class="${cls}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}"/>` : "";
+const seg = (x1: number, y1: number, x2: number, y2: number, cls = "deco"): string => `<line class="${cls}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+const clamp = (v: number, lo: number, hi: number): number => Math.min(Math.max(v, lo), hi);
 // Top-down detail drawn over a piece's footprint.
-function planDeco(it) {
+function planDeco(it: Item): string {
   const k = kindOf(it), { x, y, w, d } = it;
   let g = "";
   if (k === "bed") {
     // drawn head-up in its own frame, then turned to face the headboard side
     const side = it.headSide, across = side === "N" || side === "S" ? w : d, along = side === "N" || side === "S" ? d : w;
     const t = it.headH > 0 ? Math.min(it.headT, along) : 0;
-    const tf = { N: `translate(${x} ${y})`, S: `translate(${x + w} ${y + d}) rotate(180)`, E: `translate(${x + w} ${y}) rotate(90)`, W: `translate(${x} ${y + d}) rotate(-90)` }[side];
+    const tf = ({ N: `translate(${x} ${y})`, S: `translate(${x + w} ${y + d}) rotate(180)`, E: `translate(${x + w} ${y}) rotate(90)`, W: `translate(${x} ${y + d}) rotate(-90)` } satisfies Record<Wall, string>)[side];
     const pw = (across - 9) / 2;
     g += `<g transform="${tf}">` + box(0, 0, across, t, "deco-dark")
       + box(3, t + 3, pw, 15, "deco-fill", 3) + box(6 + pw, t + 3, pw, 15, "deco-fill", 3)
@@ -31,7 +36,7 @@ function planDeco(it) {
     } else if (k === "ottoman") {
       // lid edge and the two staggered rows of tufting buttons
       const along = longX ? w : d, across = longX ? d : w, cols = Math.max(2, Math.round(along / 6.5));
-      const dot = (a, b) => { const px = longX ? x + a : x + b, py = longX ? y + b : y + a; return `<circle class="deco-dark" cx="${px}" cy="${py}" r="0.7"/>`; };
+      const dot = (a: number, b: number) => { const px = longX ? x + a : x + b, py = longX ? y + b : y + a; return `<circle class="deco-dark" cx="${px}" cy="${py}" r="0.7"/>`; };
       g += box(x + 1.2, y + 1.2, w - 2.4, d - 2.4);
       for (let i = 0; i < cols; i++) g += dot(along * (i + 1) / (cols + 1), across / 3);
       for (let i = 0; i < cols - 1; i++) g += dot(along * (i + 1.5) / (cols + 1), across * 2 / 3);
@@ -49,10 +54,10 @@ function planDeco(it) {
   return `<g pointer-events="none">${g}</g>`;
 }
 // Front-on detail drawn over a piece in a wall view. (x, y) is its top-left there.
-function elevDeco(p, x, y, w, h) {
+function elevDeco(p: Part, x: number, y: number, w: number, h: number): string {
   const k = kindOf(p.it);
   let g = "";
-  const fronts = (rows, cols, handle) => {
+  const fronts = (rows: number, cols: number, handle: "knob" | "pull") => {
     const ch = (h - 2) / rows, cw = (w - 2) / cols;
     for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
       const fx = x + 1 + c * cw, fy = y + 1 + r * ch;
@@ -83,14 +88,14 @@ function elevDeco(p, x, y, w, h) {
     // the gilt moulding band by band, a linen liner, then Femi's photo (or a small ridge-and-sun
     // picture), cropped to fill like a print
     const f = giltFrame(w, h), { inset, w: iw, h: ih } = f.opening, ix = x + inset, iy = y + inset, photos = (p.it.photos || []).filter(k => PRINTS[k]);
-    const ring = (i, cls, fill) => `<rect class="${cls}" x="${x + i}" y="${y + i}" width="${w - 2 * i}" height="${h - 2 * i}"${fill ? ` style="fill:${fill}"` : ""}/>`;
+    const ring = (i: number, cls: string, fill?: string) => `<rect class="${cls}" x="${x + i}" y="${y + i}" width="${w - 2 * i}" height="${h - 2 * i}"${fill ? ` style="fill:${fill}"` : ""}/>`;
     for (const b of f.bands) g += ring(b.inset, "gilt", b.color);
-    const c = f.bands[2];
+    const [, , c, bead] = f.bands;
     g += ring(c.inset + c.width / 2, "carving");
-    if (f.corners) for (const cx of [x + f.corners.d, x + w - f.corners.d]) for (const cy of [y + f.corners.d, y + h - f.corners.d]) g += `<circle class="gilt" style="fill:${f.bands[3].color}" cx="${cx}" cy="${cy}" r="${f.corners.r}"/>`;
+    if (f.corners) for (const cx of [x + f.corners.d, x + w - f.corners.d]) for (const cy of [y + f.corners.d, y + h - f.corners.d]) g += `<circle class="gilt" style="fill:${bead.color}" cx="${cx}" cy="${cy}" r="${f.corners.r}"/>`;
     g += ring(f.fw, "gilt", f.linen) + box(ix, iy, iw, ih, "deco-fill");
     if (photos.length) g += photoPanes(photos, iw, ih).map(q =>
-      `<image href="${PRINTS[q.key].file}" x="${ix + iw / 2 + q.x - q.w / 2}" y="${iy + ih - q.y - q.h}" width="${q.w}" height="${q.h}" preserveAspectRatio="xMidYMid slice"><title>${PRINTS[q.key].title}</title></image>`).join("");
+      `<image href="${PRINTS[q.key]!.file}" x="${ix + iw / 2 + q.x - q.w / 2}" y="${iy + ih - q.y - q.h}" width="${q.w}" height="${q.h}" preserveAspectRatio="xMidYMid slice"><title>${PRINTS[q.key]!.title}</title></image>`).join("");
     else if (iw > 6 && ih > 6) g += `<polyline class="deco" points="${ix},${iy + ih} ${ix + iw * 0.3},${iy + ih * 0.4} ${ix + iw * 0.48},${iy + ih * 0.7} ${ix + iw * 0.68},${iy + ih * 0.3} ${ix + iw},${iy + ih}"/><circle class="deco" cx="${ix + iw * 0.82}" cy="${iy + ih * 0.22}" r="${Math.min(iw, ih) * 0.08}"/>`;
   } else if (k === "textile" && w > 6) {
     g += seg(x - 1.5, y + 0.6, x + w + 1.5, y + 0.6);
@@ -114,7 +119,7 @@ function elevDeco(p, x, y, w, h) {
   return `<g pointer-events="none">${g}</g>`;
 }
 // A door or window cut into the wall line on the plan.
-function planOpening(o, sg) {
+function planOpening(o: Opening, sg: Segment): string {
   let g = seg(sg.x1, sg.y1, sg.x2, sg.y2, "gap");
   // short ticks across the wall at each jamb
   const tx = sg.ny ? 0 : 1.6, ty = sg.ny ? 1.6 : 0;
@@ -124,7 +129,7 @@ function planOpening(o, sg) {
   return `<g pointer-events="none">${g}</g>`;
 }
 // A door or window drawn front-on in a wall view. u is its left edge, yTop its top.
-function elevOpening(o, u, yTop, wall) {
+function elevOpening(o: Opening, u: number, yTop: number, wall: Wall): string {
   const w = o.w, h = o.h;
   let g = `<rect class="frame ${o.kind}" x="${u}" y="${yTop}" width="${w}" height="${h}"/>`;
   if (o.kind === "window") {
@@ -143,7 +148,7 @@ function elevOpening(o, u, yTop, wall) {
 }
 
 /* ---------- plan ---------- */
-function planSvg() {
+function planSvg(): { vb: string; g: string } {
   const { W, L, bx, by } = state.room, P = 30;
   const poly = `0,0 ${W - bx},0 ${W - bx},${by} ${W},${by} ${W},${L} 0,${L}`;
   let g = `<defs><clipPath id="roomClip"><polygon points="${poly}"/></clipPath></defs>`;
@@ -165,7 +170,7 @@ function planSvg() {
     g += `</g>`;
   }
   // rugs and other non-solid pieces go underneath
-  for (const it of [...state.items].sort((a, b) => a.solid - b.solid)) {
+  for (const it of [...state.items].sort((a, b) => Number(a.solid) - Number(b.solid))) {
     const cls = "item" + (it.id === selId ? " sel" : "") + (isBad(it) ? " bad" : ""), cx = it.x + it.w / 2, cy = it.y + it.d / 2;
     // a turned bean bag, plant, lamp or rug is drawn at its angle; its name stays level
     if (turnOf(it)) g += `<g transform="rotate(${turnOf(it)} ${cx} ${cy})">`;
@@ -217,7 +222,7 @@ function planSvg() {
   if (picked) {
     // gaps to the walls run from the box a turned piece takes up
     const it = footprint(picked), c = clearances(picked), cx = it.x + it.w / 2, cy = it.y + it.d / 2;
-    const gapLine = (x1, y1, x2, y2, v, tx, ty) => v > 0.5
+    const gapLine = (x1: number, y1: number, x2: number, y2: number, v: number, tx: number, ty: number) => v > 0.5
       ? `<line class="clear" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/><text class="clear-t" x="${tx}" y="${ty}" font-size="3.8" text-anchor="middle">${n(v)}</text>` : "";
     g += `<g pointer-events="none">`;
     g += gapLine(cx, it.y, cx, c.northWall, c.N, cx + 6, it.y - c.N / 2 + 1.5);
@@ -230,10 +235,10 @@ function planSvg() {
 }
 
 /* ---------- elevations ---------- */
-function elevSvg(wall) {
+function elevSvg(wall: Wall): { vb: string; g: string } {
   const { W, L, bx, by, H } = state.room;
   const horiz = wall === "N" || wall === "S", len = horiz ? W : L;
-  const Y = z => H - z;
+  const Y = (z: number) => H - z;
   let g = `<rect class="floor" x="0" y="0" width="${len}" height="${H}"/>`;
   for (let u = 12; u < len; u += 12) g += `<line class="gridline" x1="${u}" y1="0" x2="${u}" y2="${H}"/>`;
   for (let z = 12; z < H; z += 12) g += `<line class="gridline" x1="0" y1="${Y(z)}" x2="${len}" y2="${Y(z)}"/>`;
@@ -274,14 +279,14 @@ function elevSvg(wall) {
 }
 
 /* ---------- views ---------- */
-const cards = {};
+const cards = {} as Record<View, HTMLDivElement>;
 for (const v of VIEWS) {
   const el = document.createElement("div");
   el.className = "card view"; el.dataset.view = v;
   el.innerHTML = `<h2>${v === "plan" ? "Floor plan · north up" : WALLS[v] + " wall · from inside"}</h2><svg></svg>`;
   cards[v] = el;
 }
-const svgOf = v => cards[v].querySelector("svg");
+const svgOf = (v: View): SVGSVGElement => cards[v].querySelector("svg")!; // each card is made with one
 function layoutViews() {
   $("#main").replaceChildren(cards[mainView]);
   $("#thumbs").replaceChildren(...VIEWS.filter(v => v !== mainView).map(v => cards[v]));
@@ -303,22 +308,26 @@ function drawViews() {
     <span><i class="near"></i>close (within ${n(r.near)}″)</span>
     <span><i class="far"></i>further out, shown as a ghost</span>`;
 }
-function setMain(v) { mainView = v; layoutViews(); draw(); }
+function setMain(v: View): void { mainView = v; layoutViews(); draw(); }
 
 /* ---------- interaction ---------- */
-let drag = null;
-function svgPoint(e) {
-  const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svgOf(mainView).getScreenCTM().inverse());
+let drag: { p: { x: number; y: number }; x: number; y: number } | null = null;
+function svgPoint(e: PointerEvent): { x: number; y: number } {
+  const ctm = svgOf(mainView).getScreenCTM();
+  if (!ctm) return { x: 0, y: 0 }; // not laid out, so nothing on screen to point at
+  const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
   return { x: p.x, y: p.y };
 }
-$("#thumbs").addEventListener("click", e => { const c = e.target.closest(".view"); if (c) setMain(c.dataset.view); });
+$("#thumbs").addEventListener("click", e => { const v = targetOf(e).closest<HTMLElement>(".view")?.dataset.view; if (v && among(VIEWS, v)) setMain(v); });
 const mainEl = $("#main");
 mainEl.addEventListener("pointerdown", e => {
-  if (!e.target.closest("svg")) return;
-  const id = e.target.dataset && e.target.dataset.id;
+  const t = targetOf(e);
+  if (!t.closest("svg")) return;
+  const id = t.dataset && t.dataset.id;
   if (!id) { if (selId) select(null); return; }
   select(id);
   const it = sel();
+  if (!it) return;
   drag = { p: svgPoint(e), x: it.x, y: it.y };
   mainEl.setPointerCapture(e.pointerId);
 });
@@ -337,5 +346,5 @@ mainEl.addEventListener("pointerup", endDrag);
 mainEl.addEventListener("pointercancel", endDrag);
 
 hooks.onDraw = drawViews;
-document.addEventListener("click", e => { if (e.target.id === "lightBtn") { showLight = !showLight; drawViews(); } });
+document.addEventListener("click", e => { if (targetOf(e).id === "lightBtn") { showLight = !showLight; drawViews(); } });
 layoutViews(); initPlanner();

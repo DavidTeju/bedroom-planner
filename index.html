@@ -113,7 +113,7 @@
     </div>
     <p id="help">Drag a piece to move it · Shift-drag to raise or lower it · drag empty space to orbit · scroll to zoom · right-drag to pan · click a door to open it</p>
     <div id="tip" hidden></div>
-    <div id="fail" hidden>The 3D view could not start. It loads three.js from cdn.jsdelivr.net, so it needs a connection and a browser with WebGL. The 2D plan works offline.</div>
+    <div id="fail" hidden>The 3D view could not start. It needs a browser with WebGL; the <a href="plan.html">2D plan</a> works without it.</div>
   </div>
   <details id="about" hidden><summary>About this layout</summary><p id="aboutText"></p></details>
   <aside id="side"></aside>
@@ -122,6 +122,6 @@
 "use strict";
 setTimeout(() => { if (!window.__planner) document.getElementById("fail").hidden = false; }, 8000);
 </script>
-<script type="module" src="/src/scene.js"></script>
+<script type="module" src="/src/scene.ts"></script>
 </body>
 </html>
