@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bedroom planner 3D</title>
+<meta name="description" content="Three ways to lay out one 129 by 164 inch bedroom, in 3D. Turn the room, switch layouts and open the doors.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Bedroom planner">
+<meta property="og:description" content="Three ways to lay out one 129 by 164 inch bedroom, in 3D. Turn the room, switch layouts and open the doors.">
+<meta property="og:image" content="https://bedroom.davidteju.dev/og/window.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://bedroom.davidteju.dev/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/src/core.css">
+<style>
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; padding: 6px 16px 12px; }
+  @media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); } }
+  #stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 10px;
+    background: linear-gradient(#eef1f3, #e4e0d5); }
+  #stage canvas { display: block; touch-action: none; outline: none; }
+  #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .bar { position: absolute; left: 10px; right: 10px; top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; pointer-events: none; }
+  .bar button { pointer-events: auto; background: rgba(255, 253, 248, .93); padding: 4px 9px; font-size: 12px; }
+  .bar button.on { border-color: var(--accent); color: var(--accent); }
+  .bar select { pointer-events: auto; width: auto; background: rgba(255, 253, 248, .93); padding: 4px 6px; font-size: 12px; }
+  .bar .menu { pointer-events: auto; position: relative; }
+  .bar .menu summary { list-style: none; cursor: pointer; background: rgba(255, 253, 248, .93); border: 1px solid var(--line); border-radius: 6px;
+    padding: 4px 9px; font-size: 12px; text-transform: none; letter-spacing: normal; color: var(--ink); margin: 0; }
+  .bar .menu summary::-webkit-details-marker { display: none; }
+  .bar .menu summary::after { content: " ▾"; color: var(--muted); }
+  .bar .menu[open] summary { border-color: var(--accent); }
+  .bar .menu > div { position: absolute; top: calc(100% + 4px); left: 0; z-index: 2; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 12px 0; box-shadow: 0 4px 14px rgba(0, 0, 0, .12); white-space: nowrap; }
+  .bar .menu label.check { color: var(--ink); font-size: 13px; }
+  /* Simulate lights and its bulb settings read as one control. */
+  .bar .lights { pointer-events: auto; display: inline-flex; align-items: center; flex-wrap: wrap; background: rgba(255, 253, 248, .93);
+    border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .bar .lights > button { border: none; border-radius: 0; background: none; display: inline-flex; align-items: center; gap: 6px; }
+  .bar .lights > button.on { background: #fff3d1; color: #7a4d00; }
+  .lights .glow { width: 9px; height: 9px; border-radius: 50%; background: #c9c3b5; }
+  .lights button.on .glow { background: var(--bulb, #ffc46b); box-shadow: 0 0 6px 2px var(--bulb, #ffc46b); }
+  .lights .bulb { display: inline-flex; align-items: center; gap: 8px; padding: 3px 9px; border-left: 1px solid var(--line); font-size: 12px; }
+  .lights .bulb[hidden] { display: none; }
+  .lights .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+  .bar .lights .seg button { border: none; border-radius: 0; background: none; padding: 2px 8px; font-size: 12px; }
+  .bar .lights .seg button.on { background: var(--accent); color: #fff; }
+  .lights .bulb[data-mode=white] .colour-only, .lights .bulb[data-mode=colour] .white-only { display: none; }
+  .lights input[type=range] { -webkit-appearance: none; appearance: none; width: 120px; height: 8px; padding: 0; border: none; border-radius: 4px;
+    background: var(--kelvin-track); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .14); }
+  .lights input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #fff;
+    border: 1px solid #8a8577; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); cursor: pointer; }
+  .lights input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 1px solid #8a8577; cursor: pointer; }
+  .lights input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: var(--kelvin-track); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .14); }
+  .lights .bulb b { min-width: 42px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .lights input[type=color] { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; padding: 0; border: 1px solid var(--line);
+    border-radius: 50%; background: none; cursor: pointer; }
+  .lights input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+  .lights input[type=color]::-webkit-color-swatch { border: none; border-radius: 50%; }
+  .lights input[type=color]::-moz-color-swatch { border: none; border-radius: 50%; }
+  /* Narrow screens put the bulb settings on a second line inside the group. */
+  @media (max-width: 760px) { .lights .bulb { flex-basis: 100%; border-left: none; border-top: 1px solid var(--line); }
+    .bar .lights > button { flex: 1; } .lights input[type=range] { flex: 1; width: auto; } }
+  #help { position: absolute; left: 10px; right: 10px; bottom: 8px; margin: 0; font-size: 12px; color: var(--muted); pointer-events: none;
+    text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
+  #tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 12px; padding: 3px 7px; border-radius: 5px;
+    white-space: nowrap; transform: translate(12px, 14px); }
+  .tag { font: 600 11px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--ink); background: rgba(255, 253, 248, .9);
+    border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+  .tag.gap { color: var(--accent); border-color: var(--accent); }
+  .tag.bad { color: var(--warn); border-color: var(--warn); }
+  .tag.compass { background: none; border: none; color: var(--muted); font-size: 13px; text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
+  #fail[hidden] { display: none; }
+  #fail { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); }
+  #printShot { display: none; }
+  @media print { aside, header p, .bar, #help { display: none; } main { grid-template-columns: 1fr; } #stage { height: auto; } #stage canvas, #labels { display: none !important; } #printShot { display: block; width: 100%; height: auto; } }
+  /* Phones get a viewer: the layouts as tabs and no editing panel. */
+  #tabs, #about { display: none; }
+  body.viewer header > p, body.viewer aside { display: none; }
+  body.viewer main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; gap: 8px; padding: 4px 10px 10px; }
+  body.viewer header { padding: 8px 10px 4px; }
+  body.viewer #tabs { display: flex; gap: 6px; width: 100%; overflow-x: auto; padding-bottom: 2px; }
+  #tabs button { flex: none; white-space: nowrap; font-size: 13px; padding: 5px 10px; background: var(--panel); }
+  #tabs button.on { border-color: var(--accent); color: var(--accent); }
+  body.viewer #about:not([hidden]) { display: block; }
+  #about { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 13px; }
+  #about summary { font-size: 13px; font-weight: 600; text-transform: none; letter-spacing: normal; color: var(--ink); margin: 0; }
+  #about p { margin: 6px 0 0; color: var(--muted); max-height: 30vh; overflow-y: auto; }
+  /* ?shot: only the room, for the link-preview pictures */
+  body.shot header, body.shot aside, body.shot .bar, body.shot #help, body.shot #labels, body.shot #about { display: none !important; }
+  body.shot main { display: block; padding: 0; }
+  body.shot #stage { height: 100%; border: none; border-radius: 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bedroom planner · 3D</h1>
+  <p>Inches throughout. Same room and saved plans as the <a href="plan.html">2D plan</a>; an edit in one shows in the other.</p>
+  <nav id="tabs" aria-label="Layouts"></nav>
+</header>
+<main>
+  <div id="stage">
+    <div id="labels"></div>
+    <div class="bar" id="bar">
+      <select id="viewSel" aria-label="View"><option value="3d">3D</option><option value="top">Top</option><option value="N">North wall</option><option value="E">East wall</option><option value="S">South wall</option><option value="W">West wall</option><option value="inside">Stand inside</option><option value="" hidden>Your view</option></select>
+      <button id="wallBtn"></button>
+      <details id="showMenu" class="menu"><summary>Show</summary><div><label class="check"><input type="checkbox" data-toggle="grid"> Grid</label><label class="check"><input type="checkbox" data-toggle="swings"> Door swings</label><label class="check"><input type="checkbox" data-toggle="names"> Names</label></div></details>
+      <span class="lights"><button data-toggle="lamps"><i class="glow"></i>Simulate lights</button><span id="bulbCtl" class="bulb" hidden>
+        <span class="seg" role="group" aria-label="Bulb"><button data-bulb-mode="white">White</button><button data-bulb-mode="colour">Colour</button></span>
+        <input class="white-only" id="kelvin" type="range" min="2500" max="6500" step="100" value="2700" aria-label="White temperature"><b class="white-only" id="kelvinVal">2700K</b>
+        <input class="colour-only" id="bulbColor" type="color" value="#ff4fa3" aria-label="Bulb colour"></span></span>
+    </div>
+    <p id="help">Drag a piece to move it · Shift-drag to raise or lower it · drag empty space to orbit · scroll to zoom · right-drag to pan · click a door to open it</p>
+    <div id="tip" hidden></div>
+    <div id="fail" hidden>The 3D view could not start. It loads three.js from cdn.jsdelivr.net, so it needs a connection and a browser with WebGL. The 2D plan works offline.</div>
+  </div>
+  <details id="about" hidden><summary>About this layout</summary><p id="aboutText"></p></details>
+  <aside id="side"></aside>
+</main>
+<script>
+"use strict";
+setTimeout(() => { if (!window.__planner) document.getElementById("fail").hidden = false; }, 8000);
+</script>
+<script type="module" src="/src/scene.js"></script>
+</body>
+</html>

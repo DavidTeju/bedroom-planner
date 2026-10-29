@@ -1,11 +1,20 @@
 {
   "name": "bedroom-planner",
   "private": true,
-  "description": "2D and 3D planner for Femi's San Francisco bedroom",
+  "description": "2D and 3D planner for a bedroom, built from its measurements",
   "type": "module",
   "scripts": {
-    "test": "node --test \"tests/*.test.mjs\"",
-    "serve": "python3 -m http.server 4731 --bind 127.0.0.1 --directory site",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
     "deploy": "deploy/deploy.sh"
+  },
+  "dependencies": {
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "vite": "8.3.4",
+    "vitest": "5.0.4"
   }
 }

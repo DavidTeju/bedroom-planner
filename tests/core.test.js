@@ -1,78 +1,84 @@
 // Run with: npm test
-import { test } from "node:test";
+import { test, vi } from "vitest";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import vm from "node:vm";
+import { drapePoint, pillowPoint } from "../src/cloth.js";
+import { kuwahara } from "../src/kuwahara.js";
 
-const dir = new URL("../site/", import.meta.url);
-const read = name => fs.readFileSync(new URL(name, dir), "utf8");
+const root = new URL("../", import.meta.url);
+const file = name => fs.readFileSync(new URL(name, root), "utf8");
+// A page is its markup plus the script that drives it; static files are served from public/.
+const PAGES = { "index.html": "src/scene.js", "plan.html": "src/plan2d.js" };
+const read = name => {
+  if (PAGES[name]) return file(name) + "\n" + file(PAGES[name]);
+  if (name === "core.js" || name === "core.css") return file("src/" + name);
+  return file("public/" + name);
+};
+const dir = new URL("public/", root);
 
-// Loads the shared planner script the way a page does and returns an evaluator for its globals.
-function loadCore() {
+// A fresh copy of the shared planner module, with its own empty storage.
+async function loadCore() {
   const store = new Map();
-  const ctx = vm.createContext({
-    console, structuredClone,
-    localStorage: { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) }
-  });
-  vm.runInContext(read("core.js"), ctx, { filename: "core.js" });
-  return src => vm.runInContext(src, ctx);
+  vi.stubGlobal("localStorage", { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) });
+  vi.resetModules();
+  return import("../src/core.js");
 }
 
 test("both pages load the shared core and neither keeps its own copy of the layouts", () => {
   for (const page of ["plan.html", "index.html"]) {
     const html = read(page);
-    assert.match(html, /<script src="core\.js"><\/script>/, page + " loads the core");
+    assert.match(html, /^import \{[^}]*\} from "\.\/core\.js";$/m, page + " imports the core");
     assert.doesNotMatch(html, /const BUILTIN\b/, page + " has no inline layouts");
   }
 });
 
-test("the core ships the measured room and the ready-made layouts", () => {
-  const run = loadCore();
-  assert.equal(run("state.room.W"), 129);
-  assert.equal(run("BUILTIN.map(p => p.name).join(' | ')"), "Bed facing the window | Corner bed, maximum storage | Centred bed, both sides open");
+test("the core ships the measured room and the ready-made layouts", async () => {
+  const { BUILTIN, state } = await loadCore();
+  assert.equal(state.room.W, 129);
+  assert.equal(BUILTIN.map(p => p.name).join(' | '), "Bed facing the window | Corner bed, maximum storage | Centred bed, both sides open");
 });
 
-test("every ready-made layout uses the measured 46 x 16 upholstered storage bench", () => {
-  const run = loadCore();
-  const benches = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => p.items.filter(i => i.kind === "ottoman").map(i => [i.w, i.d].sort((a, b) => b - a))))`));
+test("every ready-made layout uses the measured 46 x 16 upholstered storage bench", async () => {
+  const { BUILTIN, layout, PRESETS } = await loadCore();
+  const benches = JSON.parse(JSON.stringify(BUILTIN.map(p => p.items.filter(i => i.kind === "ottoman").map(i => [i.w, i.d].sort((a, b) => b - a)))));
   assert.deepEqual(benches, [[[46, 16]], [[46, 16]], [[46, 16]]]);
-  assert.equal(run(`PRESETS.find(p => p[7] === "ottoman").slice(1, 3).join("x")`), "46x16");
+  assert.equal(PRESETS.find(p => p[7] === "ottoman").slice(1, 3).join("x"), "46x16");
 });
 
-test("the window-facing layout has the wardrobe facing south and nothing blocked", () => {
-  const run = loadCore();
-  const out = JSON.parse(run(`(() => {
+test("the window-facing layout has the wardrobe facing south and nothing blocked", async () => {
+  const { BUILTIN, frontDir, isBad, layout, state } = await loadCore();
+  const out = JSON.parse((() => {
     const plan = BUILTIN.find(p => p.name === "Bed facing the window");
     state.items = plan.items;
     return JSON.stringify({
       pax: plan.items.filter(i => i.kind === "wardrobe").map(frontDir),
       blocked: plan.items.filter(isBad).map(i => i.name)
     });
-  })()`));
+  })());
   assert.deepEqual(out, { pax: ["S"], blocked: [] });
 });
 
-test("a piece standing where a wardrobe's doors open is blocked", () => {
-  const run = loadCore();
-  const blocked = rackY => run(`(() => {
+test("a piece standing where a wardrobe's doors open is blocked", async () => {
+  const { isBad, state } = await loadCore();
+  const blocked = rackY => (() => {
     const pax = { id: "w", name: "PAX", kind: "wardrobe", x: 0, y: 0, w: 39.375, d: 22.875, h: 93, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" };
-    const rack = { id: "r", name: "Rack", kind: "rack", x: 0, y: ${rackY}, w: 20.125, d: 30, h: 69, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" };
+    const rack = { id: "r", name: "Rack", kind: "rack", x: 0, y: rackY, w: 20.125, d: 30, h: 69, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" };
     state.items = [pax, rack];
     return isBad(rack);
-  })()`);
+  })();
   assert.equal(blocked(22.875), true, "rack against the doors");
   assert.equal(blocked(43), false, "rack past the door sweep");
 });
 
-test("wardrobe doors open toward the front, one sweep per door, hinged on the outer edges", () => {
-  const run = loadCore();
-  const doors = JSON.parse(run(`JSON.stringify(wardrobeSwings({ id: "w", name: "PAX", kind: "wardrobe", x: 0, y: 0, w: 40, d: 23, h: 93, z: 0, headH: 0 }))`));
+test("wardrobe doors open toward the front, one sweep per door, hinged on the outer edges", async () => {
+  const { wardrobeSwings } = await loadCore();
+  const doors = JSON.parse(JSON.stringify(wardrobeSwings({ id: "w", name: "PAX", kind: "wardrobe", x: 0, y: 0, w: 40, d: 23, h: 93, z: 0, headH: 0 })));
   assert.deepEqual(doors.map(d => [d.hx, d.hy, d.ox, d.oy, d.r]), [[0, 23, 0, 43, 20], [40, 23, 40, 43, 20]]);
 });
 
-test("a piece against a wall faces into the room", () => {
-  const run = loadCore();
-  const face = it => run(`frontDir(${JSON.stringify(it)})`);
+test("a piece against a wall faces into the room", async () => {
+  const { frontDir } = await loadCore();
+  const face = it => frontDir(it);
   const base = { z: 0, h: 30, headH: 0 };
   assert.equal(face({ ...base, name: "Dresser", kind: "dresser", x: 0, y: 17, w: 18.875, d: 63 }), "E");
   assert.equal(face({ ...base, name: "Wardrobe", kind: "wardrobe", x: 0, y: 0, w: 39.375, d: 22.875 }), "S");
@@ -80,68 +86,68 @@ test("a piece against a wall faces into the room", () => {
   assert.equal(face({ ...base, name: "Wall hanging", kind: "textile", x: 128, y: 85, w: 1, d: 30 }), "W");
 });
 
-test("a piece on the in-push faces away from it", () => {
-  const run = loadCore();
-  assert.equal(run(`frontDir({ name: "Summit photos", kind: "art", x: 100, y: 48, w: 24, d: 1, h: 20, z: 50 })`), "S");
-  assert.equal(run(`frontDir({ name: "Mirror", kind: "mirror", x: 97, y: 10, w: 1, d: 24, h: 60, z: 12 })`), "W");
+test("a piece on the in-push faces away from it", async () => {
+  const { frontDir } = await loadCore();
+  assert.equal(frontDir({ name: "Summit photos", kind: "art", x: 100, y: 48, w: 24, d: 1, h: 20, z: 50 }), "S");
+  assert.equal(frontDir({ name: "Mirror", kind: "mirror", x: 97, y: 10, w: 1, d: 24, h: 60, z: 12 }), "W");
 });
 
-test("a bed faces away from its headboard, and a chosen facing wins over the guess", () => {
-  const run = loadCore();
-  assert.equal(run(`frontDir(state.items[0])`), "N");
-  assert.equal(run(`frontDir({ name: "Dresser", kind: "dresser", x: 0, y: 17, w: 18.875, d: 63, h: 30, z: 0, face: "N" })`), "N");
+test("a bed faces away from its headboard, and a chosen facing wins over the guess", async () => {
+  const { frontDir, state } = await loadCore();
+  assert.equal(frontDir(state.items[0]), "N");
+  assert.equal(frontDir({ name: "Dresser", kind: "dresser", x: 0, y: 17, w: 18.875, d: 63, h: 30, z: 0, face: "N" }), "N");
 });
 
-test("rotating a piece swaps its footprint and turns its headboard and chosen facing clockwise", () => {
-  const run = loadCore();
-  const out = run(`(() => {
+test("rotating a piece swaps its footprint and turns its headboard and chosen facing clockwise", async () => {
+  const { footprint, rotateItem, state } = await loadCore();
+  const out = (() => {
     const it = { id: "t", name: "Dresser", kind: "dresser", x: 40, y: 60, w: 36, d: 18, h: 34, z: 0, solid: true, headH: 0, headT: 3, headSide: "S", face: "N" };
     state.items = [it];
     rotateItem(it);
     return JSON.stringify(it);
-  })()`);
+  })();
   const it = JSON.parse(out);
   assert.deepEqual([it.w, it.d, it.face, it.headSide], [18, 36, "E", "W"]);
 });
 
-test("rotating a piece whose facing was guessed turns that facing too", () => {
-  const run = loadCore();
-  const out = run(`(() => {
+test("rotating a piece whose facing was guessed turns that facing too", async () => {
+  const { frontDir, rotateItem, state } = await loadCore();
+  const out = (() => {
     const it = { id: "c", name: "Armchair", kind: "chair", x: 40, y: 60, w: 32, d: 34, h: 32, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" };
     state.items = [it];
     const before = frontDir(it);
     rotateItem(it);
     return JSON.stringify([before, frontDir(it)]);
-  })()`);
+  })();
   const [before, after] = JSON.parse(out);
   assert.equal(after, { N: "E", E: "S", S: "W", W: "N" }[before]);
 });
 
-test("no ready-made layout has a blocked piece", () => {
-  const run = loadCore();
-  const blocked = JSON.parse(run(`JSON.stringify(BUILTIN.flatMap(p => { state.items = p.items; return p.items.filter(isBad).map(i => p.name + ": " + i.name); }))`));
+test("no ready-made layout has a blocked piece", async () => {
+  const { BUILTIN, isBad, layout, state } = await loadCore();
+  const blocked = JSON.parse(JSON.stringify(BUILTIN.flatMap(p => { state.items = p.items; return p.items.filter(isBad).map(i => p.name + ": " + i.name); })));
   assert.deepEqual(blocked, []);
 });
 
-test("every piece in every ready-made layout resolves to a compass facing", () => {
-  const run = loadCore();
-  const faces = JSON.parse(run(`JSON.stringify(BUILTIN.flatMap(p => p.items.map(frontDir)))`));
+test("every piece in every ready-made layout resolves to a compass facing", async () => {
+  const { $, BUILTIN, frontDir, layout } = await loadCore();
+  const faces = JSON.parse(JSON.stringify(BUILTIN.flatMap(p => p.items.map(frontDir))));
   assert.ok(faces.length > 30);
   for (const f of faces) assert.match(f, /^[NESW]$/);
 });
 
-test("every ready-made layout has Femi's green VILHATTEN wardrobe with his black LACK shoe shelf beside it", () => {
-  const run = loadCore();
-  const pick = kind => JSON.parse(run(`JSON.stringify(BUILTIN.map(p => p.items.filter(i => i.kind === "${kind}").map(i => [i.name, i.x, i.y, i.w, i.d, i.h, i.color])))`));
+test("every ready-made layout has Femi's green VILHATTEN wardrobe with his black LACK shoe shelf beside it", async () => {
+  const { $, BUILTIN, layout } = await loadCore();
+  const pick = kind => JSON.parse(JSON.stringify(BUILTIN.map(p => p.items.filter(i => i.kind === `${kind}`).map(i => [i.name, i.x, i.y, i.w, i.d, i.h, i.color]))));
   const wardrobe = [["VILHATTEN wardrobe, green", 0, 0, 38.625, 22.5, 74.75, "#68705c"]];
   const shelf = [["LACK shoe shelf, black-brown", 38.625, 0, 11.75, 11, 74.75, "#2a2421"]];
   assert.deepEqual(pick("wardrobe"), [wardrobe, wardrobe, wardrobe]);
   assert.deepEqual(pick("shoe"), [shelf, shelf, shelf]);
 });
 
-test("the window-facing layout has a nightstand by the head of the bed on its open side", () => {
-  const run = loadCore();
-  const out = JSON.parse(run(`(() => {
+test("the window-facing layout has a nightstand by the head of the bed on its open side", async () => {
+  const { BUILTIN, isBad, layout, n, state } = await loadCore();
+  const out = JSON.parse((() => {
     const plan = BUILTIN.find(p => p.name === "Bed facing the window");
     state.items = plan.items;
     const bed = plan.items.find(i => i.kind === "bed"), ns = plan.items.filter(i => i.kind === "nightstand");
@@ -152,13 +158,13 @@ test("the window-facing layout has a nightstand by the head of the bed on its op
       onFloor: n.z === 0,
       blocked: isBad(n)
     })));
-  })()`));
+  })());
   assert.deepEqual(out, [{ againstBed: true, byHead: true, topNearMattress: true, onFloor: true, blocked: false }]);
 });
 
-test("the centred layout has a short chest west of the bed, under the window sill", () => {
-  const run = loadCore();
-  const out = JSON.parse(run(`(() => {
+test("the centred layout has a short chest west of the bed, under the window sill", async () => {
+  const { BUILTIN, layout, state } = await loadCore();
+  const out = JSON.parse((() => {
     const plan = BUILTIN.find(p => p.name === "Centred bed, both sides open");
     const bed = plan.items.find(i => i.kind === "bed"), win = state.openings.find(o => o.id === "window");
     return JSON.stringify(plan.items.filter(i => i.kind === "dresser" && i.x + i.w <= bed.x).map(i => ({
@@ -166,26 +172,26 @@ test("the centred layout has a short chest west of the bed, under the window sil
       underWindow: i.y >= win.off && i.y + i.d <= win.off + win.w + 0.01,
       belowSill: i.z + i.h < win.sill
     })));
-  })()`));
+  })());
   assert.deepEqual(out, [{ onWestWall: true, underWindow: true, belowSill: true }]);
 });
 
-test("every ready-made layout is lit by lamps alone: a floor lamp and nothing on the ceiling", () => {
-  const run = loadCore();
-  const out = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => {
+test("every ready-made layout is lit by lamps alone: a floor lamp and nothing on the ceiling", async () => {
+  const { BUILTIN, layout, state } = await loadCore();
+  const out = JSON.parse(JSON.stringify(BUILTIN.map(p => {
     const lights = p.items.filter(i => i.kind === "lamp" || i.kind === "sconce");
     return {
       name: p.name,
       floorLamp: lights.some(i => i.kind === "lamp" && i.z === 0 && i.h >= 55),
       onCeiling: lights.filter(i => i.z + i.h >= state.room.H - 6).map(i => i.name)
     };
-  }))`));
+  })));
   for (const p of out) assert.deepEqual(p, { name: p.name, floorLamp: true, onCeiling: [] });
 });
 
-test("every open side of the bed has a reading light at the head", () => {
-  const run = loadCore();
-  const out = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => {
+test("every open side of the bed has a reading light at the head", async () => {
+  const { BUILTIN, clearances, state } = await loadCore();
+  const out = JSON.parse(JSON.stringify(BUILTIN.map(p => {
     state.items = p.items;
     const bed = p.items.find(i => i.kind === "bed"), c = clearances(bed), flush = state.room.flush;
     const head = bed.headSide, along = head === "N" || head === "S";
@@ -198,16 +204,16 @@ test("every open side of the bed has a reading light at the head", () => {
       return Math.hypot(cx - corner[0], cy - corner[1]) <= 20;
     })).map(([s]) => s);
     return { name: p.name, unlit };
-  }))`));
+  })));
   for (const p of out) assert.deepEqual(p, { name: p.name, unlit: [] });
 });
 
-test("a plug-in sconce is a thin wall piece that both views draw", () => {
-  const run = loadCore();
-  assert.equal(run(`KINDS.sconce`), "Wall sconce");
-  assert.equal(run(`kindOf({ name: "Plug-in swing-arm sconce" })`), "sconce");
-  const sconces = JSON.parse(run(`JSON.stringify(BUILTIN.flatMap(p => { state.items = p.items; return p.items.filter(i => i.kind === "sconce").map(i => {
-    const c = clearances(i); return { thin: Math.min(i.w, i.d) <= 4, onWall: Math.min(c.N, c.S, c.E, c.W) <= state.room.flush, raised: i.z > 0 }; }); }))`));
+test("a plug-in sconce is a thin wall piece that both views draw", async () => {
+  const { BUILTIN, clearances, draw, kindOf, KINDS, layout, state } = await loadCore();
+  assert.equal(KINDS.sconce, "Wall sconce");
+  assert.equal(kindOf({ name: "Plug-in swing-arm sconce" }), "sconce");
+  const sconces = JSON.parse(JSON.stringify(BUILTIN.flatMap(p => { state.items = p.items; return p.items.filter(i => i.kind === "sconce").map(i => {
+    const c = clearances(i); return { thin: Math.min(i.w, i.d) <= 4, onWall: Math.min(c.N, c.S, c.E, c.W) <= state.room.flush, raised: i.z > 0 }; }); })));
   assert.ok(sconces.length > 0, "some layout uses a sconce");
   for (const s of sconces) assert.deepEqual(s, { thin: true, onWall: true, raised: true });
   assert.match(read("index.html"), /^\s+sconce\(g,/m, "the 3D view has a sconce model");
@@ -218,34 +224,34 @@ test("the 3D view can switch the room to lamplight", () => {
   assert.match(read("index.html"), /data-toggle="lamps"/);
 });
 
-test("a lamp lights a point by the inverse-square and cosine laws", () => {
-  const run = loadCore();
-  const out = JSON.parse(run(`(() => {
+test("a lamp lights a point by the inverse-square and cosine laws", async () => {
+  const { directLux } = await loadCore();
+  const out = JSON.parse((() => {
     const src = { x: 0, y: 0, z: 39.3701, lm: 1000, down: 1 };
     return JSON.stringify([directLux(src, 0, 0, 0, []), directLux(src, 39.3701, 0, 0, []), directLux(src, 0, 0, 50, [])]);
-  })()`));
+  })());
   const I = 0.85 * 1000 / (2 * Math.PI);
   assert.ok(Math.abs(out[0] - I) < 0.5, "straight below, 1 m away: " + out[0]);
   assert.ok(Math.abs(out[1] - I * Math.SQRT1_2 / 2) < 0.5, "1 m below and 1 m across: " + out[1]);
   assert.equal(out[2], 0, "a plane above the lamp gets no direct light");
 });
 
-test("a solid piece between a lamp and a point shades it", () => {
-  const run = loadCore();
-  const lux = JSON.parse(run(`JSON.stringify(directLux({ x: 0, y: 0, z: 60, lm: 1000, down: 0.5 }, 40, 0, 0, [{ x: 15, y: -5, w: 10, d: 10, z: 0, h: 50 }]))`));
+test("a solid piece between a lamp and a point shades it", async () => {
+  const { directLux } = await loadCore();
+  const lux = JSON.parse(JSON.stringify(directLux({ x: 0, y: 0, z: 60, lm: 1000, down: 0.5 }, 40, 0, 0, [{ x: 15, y: -5, w: 10, d: 10, z: 0, h: 50 }])));
   assert.equal(lux, 0);
 });
 
-test("the light map reports each layout's reading spots, average and darkest tenth", () => {
-  const run = loadCore();
-  const out = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => { const r = lightReport(p.items); return { spots: r.reading.length, avg: r.avg > 0, p10: r.p10 >= 0, cells: r.map.vals.length > 0 }; }))`));
+test("the light map reports each layout's reading spots, average and darkest tenth", async () => {
+  const { BUILTIN, layout, lightReport } = await loadCore();
+  const out = JSON.parse(JSON.stringify(BUILTIN.map(p => { const r = lightReport(p.items); return { spots: r.reading.length, avg: r.avg > 0, p10: r.p10 >= 0, cells: r.map.vals.length > 0 }; })));
   assert.deepEqual(out, [{ spots: 1, avg: true, p10: true, cells: true }, { spots: 1, avg: true, p10: true, cells: true }, { spots: 2, avg: true, p10: true, cells: true }]);
 });
 
-test("with only the lamps on, every reading spot gets 300 lux and the room averages 50", () => {
-  const run = loadCore();
-  const out = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => { const r = lightReport(p.items);
-    return { name: p.name, dimSpots: r.reading.filter(s => s.lux < READ_LUX).map(s => s.side + " " + Math.round(s.lux)), avgOk: r.avg >= ROOM_LUX }; }))`));
+test("with only the lamps on, every reading spot gets 300 lux and the room averages 50", async () => {
+  const { BUILTIN, lightReport, READ_LUX, ROOM_LUX } = await loadCore();
+  const out = JSON.parse(JSON.stringify(BUILTIN.map(p => { const r = lightReport(p.items);
+    return { name: p.name, dimSpots: r.reading.filter(s => s.lux < READ_LUX).map(s => s.side + " " + Math.round(s.lux)), avgOk: r.avg >= ROOM_LUX }; })));
   for (const p of out) assert.deepEqual(p, { name: p.name, dimSpots: [], avgOk: true });
 });
 
@@ -255,18 +261,18 @@ test("the 2D plan can overlay the lamps-only light map", () => {
   assert.match(html, /lightReport\(state\.items\)/);
 });
 
-test("the 2D plan colours the light map from the core, and the 3D view has no light map", () => {
-  const run = loadCore();
-  assert.equal(run(`luxColor(10)`), "#1f2a44");
-  assert.equal(run(`luxColor(1000)`), "#fff6d6");
+test("the 2D plan colours the light map from the core, and the 3D view has no light map", async () => {
+  const { lightReport, luxColor } = await loadCore();
+  assert.equal(luxColor(10), "#1f2a44");
+  assert.equal(luxColor(1000), "#fff6d6");
   assert.doesNotMatch(read("plan.html"), /function luxColor/, "the 2D plan uses the shared colours");
   assert.doesNotMatch(read("index.html"), /data-toggle="lightmap"|lightReport\(/);
 });
 
-test("a white bulb's colour temperature turns into the right RGB", () => {
-  const run = loadCore();
+test("a white bulb's colour temperature turns into the right RGB", async () => {
+  const { kelvinRGB } = await loadCore();
   const near = (got, want) => got.every((v, i) => Math.abs(v - want[i]) <= 3);
-  const warm = JSON.parse(run(`JSON.stringify(kelvinRGB(2700))`)), cool = JSON.parse(run(`JSON.stringify(kelvinRGB(6500))`));
+  const warm = JSON.parse(JSON.stringify(kelvinRGB(2700))), cool = JSON.parse(JSON.stringify(kelvinRGB(6500)));
   assert.ok(near(warm, [255, 167, 87]), "2700K: " + warm);
   assert.ok(near(cool, [255, 254, 250]), "6500K: " + cool);
 });
@@ -277,22 +283,22 @@ test("lamps-only mode lets the bulbs be any white temperature or any colour", ()
   assert.match(html, /id="bulbColor"[^>]*type="color"|type="color"[^>]*id="bulbColor"/);
 });
 
-test("every lamp that takes a bulb gets Femi's 1100 lm Tapo L535E", () => {
-  const run = loadCore();
-  const lm = JSON.parse(run(`JSON.stringify(Object.fromEntries(BUILTIN[1].items.filter(i => i.kind === "lamp" || i.kind === "sconce").map(i => [i.name, lightSpec(i).lm])))`));
+test("every lamp that takes a bulb gets Femi's 1100 lm Tapo L535E", async () => {
+  const { BUILTIN, lightSpec } = await loadCore();
+  const lm = JSON.parse(JSON.stringify(Object.fromEntries(BUILTIN[1].items.filter(i => i.kind === "lamp" || i.kind === "sconce").map(i => [i.name, lightSpec(i).lm]))));
   assert.deepEqual(lm, { "Floor lamp": 1100, "Plug-in swing-arm sconce": 1100, "BÖJA table lamp (yours)": 1100, "Mika cactus lamp (yours)": 1100, "PELARBOJ glow lamp (yours)": 25 });
 });
 
 const LINK_SLUGS = { window: "Bed facing the window", corner: "Corner bed, maximum storage", centred: "Centred bed, both sides open" };
 
-test("each ready-made layout has a link slug that opens it", () => {
-  const run = loadCore();
+test("each ready-made layout has a link slug that opens it", async () => {
+  const { $, BUILTIN, layout, linkedPlan, linkOf } = await loadCore();
   for (const [slug, name] of Object.entries(LINK_SLUGS)) {
-    assert.equal(run(`linkedPlan("?layout=${slug}")?.name`), name, slug);
-    assert.equal(run(`linkOf(BUILTIN.find(p => p.name === ${JSON.stringify(name)}))`), "/" + slug + "/");
+    assert.equal(linkedPlan(`?layout=${slug}`)?.name, name, slug);
+    assert.equal(linkOf(BUILTIN.find(p => p.name === name)), "/" + slug + "/");
   }
-  assert.equal(run(`linkedPlan("?layout=nope")`), null);
-  assert.equal(run(`linkedPlan("")`), null);
+  assert.equal(linkedPlan("?layout=nope"), null);
+  assert.equal(linkedPlan(""), null);
 });
 
 // Width and height from a PNG's IHDR chunk.
@@ -341,43 +347,43 @@ test("each plan row stacks its note under the name and ends in a same-size copy-
   assert.match(css, /ul\.plans \.link \{[^}]*width: 28px/);
 });
 
-test("every sidebar section but Selected collapses, and the room section starts collapsed", () => {
-  const run = loadCore();
-  const side = run("SIDEBAR");
+test("every sidebar section but Selected collapses, and the room section starts collapsed", async () => {
+  const { plans, save, SIDEBAR } = await loadCore();
+  const side = SIDEBAR;
   assert.deepEqual([...side.matchAll(/<div class="card"[^>]*>/g)].map(m => m[0]), ['<div class="card" id="selCard">']);
   const sections = [...side.matchAll(/<details class="card" data-section="(\w+)"( open)?>\s*<summary>/g)].map(m => [m[1], !!m[2]]);
   assert.deepEqual(sections, [["furniture", true], ["plans", true], ["room", false], ["save", true], ["keys", true]]);
   assert.doesNotMatch(side, /<h2>/);
 });
 
-test("the snowboard, its boots, a ladder shelf and a bean bag are pieces both views draw", () => {
-  const run = loadCore();
+test("the snowboard, its boots, a ladder shelf and a bean bag are pieces both views draw", async () => {
+  const { $, draw, kindOf, KINDS, PRESETS } = await loadCore();
   const kinds = { board: "Snowboard wall rack", boots: "Snowboard boots on a tray", ladder: "Ladder shelf", beanbag: "Bean bag" };
   for (const [kind, name] of Object.entries(kinds)) {
-    assert.ok(run(`KINDS.${kind}`), kind + " is a kind");
-    assert.equal(run(`PRESETS.filter(p => p[7] === "${kind}").map(p => p[0]).join()`), name, kind + " has a preset");
-    assert.equal(run(`kindOf({ name: "${name}" })`), kind, name + " is recognised by name");
+    assert.ok(KINDS[kind], kind + " is a kind");
+    assert.equal(PRESETS.filter(p => p[7] === kind).map(p => p[0]).join(), name, kind + " has a preset");
+    assert.equal(kindOf({ name }), kind, name + " is recognised by name");
     assert.match(read("index.html"), new RegExp(`^\\s+${kind}\\(g,`, "m"), "the 3D view has a " + kind + " model");
     assert.match(read("plan.html"), new RegExp(`k === "${kind}"`), "the 2D plan draws " + kind);
   }
 });
 
-test("every ready-made layout hangs the snowboard upright on a wall over its boots", () => {
-  const run = loadCore();
-  const out = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => {
+test("every ready-made layout hangs the snowboard upright on a wall over its boots", async () => {
+  const { BUILTIN, clearances, layout, overlap, state } = await loadCore();
+  const out = JSON.parse(JSON.stringify(BUILTIN.map(p => {
     state.items = p.items;
     const board = p.items.filter(i => i.kind === "board"), boots = p.items.filter(i => i.kind === "boots");
     if (board.length !== 1 || boots.length !== 1) return { name: p.name, board: board.length, boots: boots.length };
     const b = board[0], t = boots[0], c = clearances(b);
     return { name: p.name, onWall: Math.min(c.N, c.S, c.E, c.W) <= state.room.flush, upright: b.h > 4 * Math.max(b.w, b.d),
       clearsBoots: b.z >= t.z + t.h, over: overlap(b, t), bootsOnFloor: t.z === 0 };
-  }))`));
+  })));
   for (const p of out) assert.deepEqual(p, { name: p.name, onWall: true, upright: true, clearsBoots: true, over: true, bootsOnFloor: true });
 });
 
-test("the window layout has a ladder shelf on the in-push instead of an open clothes rack", () => {
-  const run = loadCore();
-  const out = JSON.parse(run(`(() => {
+test("the window layout has a ladder shelf on the in-push instead of an open clothes rack", async () => {
+  const { BUILTIN, frontDir, layout, state } = await loadCore();
+  const out = JSON.parse((() => {
     const plan = BUILTIN.find(p => p.name === "Bed facing the window");
     state.items = plan.items;
     return JSON.stringify({
@@ -385,7 +391,7 @@ test("the window layout has a ladder shelf on the in-push instead of an open clo
       ladder: plan.items.filter(i => i.kind === "ladder").map(i => [i.x, i.y, i.w, i.d, i.h, frontDir(i)]),
       count: plan.items.length, mentionsRack: /RIGGA|rack/.test(plan.why)
     });
-  })()`));
+  })());
   assert.deepEqual(out, { racks: 0, ladder: [[101, 48, 24, 16, 72, "S"]], count: 22, mentionsRack: false });
 });
 
@@ -398,15 +404,15 @@ test("the bean bag is one sagging fabric sack, not stacked spheres", () => {
   assert.match(html, /function sackGeometry\(/);
 });
 
-test("Print waits for the page to get ready before opening the browser's print dialog", () => {
-  const run = loadCore();
-  assert.equal(run("typeof onPrint"), "function", "pages can hook printing");
-  assert.match(read("core.js"), /\$\("#print"\)\.addEventListener\("click", async \(\) => \{ await onPrint\(\); window\.print\(\); \}\)/);
+test("Print waits for the page to get ready before opening the browser's print dialog", async () => {
+  const { hooks } = await loadCore();
+  assert.equal(typeof hooks.onPrint, "function", "pages can hook printing");
+  assert.match(read("core.js"), /\$\("#print"\)\.addEventListener\("click", async \(\) => \{ await hooks\.onPrint\(\); window\.print\(\); \}\)/);
 });
 
 test("the 3D view prints a still picture, since the canvas keeps its screen size and is not redrawn for paper", () => {
   const html = read("index.html");
-  assert.match(html, /onPrint = takePrintShot/);
+  assert.match(html, /hooks\.onPrint = takePrintShot/);
   const shot = html.match(/async function takePrintShot\(\) \{[\s\S]*?\n\}/)[0];
   assert.match(shot, /renderer\.render\(scene, camera\)/, "draws a fresh frame first");
   assert.match(shot, /toDataURL\(/);
@@ -419,15 +425,15 @@ test("the 3D view prints a still picture, since the canvas keeps its screen size
   assert.match(html, /#printShot \{ display: none; \}/);
 });
 
-test("round and soft pieces and rugs can turn to any angle; hard furniture cannot", () => {
-  const run = loadCore();
-  const turnable = JSON.parse(run(`JSON.stringify(Object.keys(KINDS).filter(k => canTurn({ kind: k })))`));
+test("round and soft pieces and rugs can turn to any angle; hard furniture cannot", async () => {
+  const { canTurn, KINDS } = await loadCore();
+  const turnable = JSON.parse(JSON.stringify(Object.keys(KINDS).filter(k => canTurn({ kind: k }))));
   assert.deepEqual(turnable.sort(), ["beanbag", "lamp", "plant", "rug"]);
 });
 
-test("a turned piece takes up the wall-aligned box that holds it, centred where it was", () => {
-  const run = loadCore();
-  const fp = it => JSON.parse(run(`JSON.stringify(footprint(${JSON.stringify(it)}))`));
+test("a turned piece takes up the wall-aligned box that holds it, centred where it was", async () => {
+  const { footprint } = await loadCore();
+  const fp = it => JSON.parse(JSON.stringify(footprint(it)));
   const round = v => Math.round(v * 100) / 100;
   const box = f => [f.x, f.y, f.w, f.d].map(round);
   const bag = { name: "Bean bag", kind: "beanbag", x: 40, y: 50, w: 36, d: 34, h: 26, z: 0 };
@@ -442,9 +448,9 @@ test("a turned piece takes up the wall-aligned box that holds it, centred where 
   assert.deepEqual(box(fp({ name: "Dresser", kind: "dresser", x: 0, y: 0, w: 36, d: 18, h: 34, z: 0, turn: 30 })), [0, 0, 36, 18], "a dresser ignores turn");
 });
 
-test("the rules use a turned piece's real footprint", () => {
-  const run = loadCore();
-  const out = JSON.parse(run(`(() => {
+test("the rules use a turned piece's real footprint", async () => {
+  const { clearances, footprint, isBad, outside, state } = await loadCore();
+  const out = JSON.parse((() => {
     const rug = { id: "r", name: "Rug", kind: "rug", x: 0, y: 60, w: 96, d: 60, h: 0.5, z: 0, solid: false, headH: 0, headT: 3, headSide: "S" };
     const plant = { id: "c", name: "Plant", kind: "plant", x: 0, y: 130, w: 30, d: 10, h: 40, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" };
     const box = { id: "b", name: "Box", kind: "other", x: 26, y: 120, w: 20, d: 20, h: 20, z: 0, solid: true, headH: 0, headT: 3, headSide: "S" };
@@ -452,7 +458,7 @@ test("the rules use a turned piece's real footprint", () => {
     const flat = { rugOut: outside(rug), plantHits: isBad(plant) };
     rug.turn = 40; plant.turn = 90;
     return JSON.stringify({ flat, turned: { rugOut: outside(rug), plantHits: isBad(plant), plantW: clearances(plant).W } });
-  })()`));
+  })());
   // turned 90, the 30 x 10 plant is 10 wide and 30 deep about the same centre, clear of the box
   assert.deepEqual(out, { flat: { rugOut: false, plantHits: true }, turned: { rugOut: true, plantHits: false, plantW: 10 } });
 });
@@ -465,16 +471,16 @@ test("the Selected panel offers a turn angle only for pieces that can turn, and 
   assert.match(read("plan.html"), /rotate\(\$\{turnOf\(it\)\} \$\{cx\} \$\{cy\}\)/);
 });
 
-test("the window layout uses Femi's own wood nightstand with the rattan drawer", () => {
-  const run = loadCore();
-  const ns = JSON.parse(run(`JSON.stringify(BUILTIN.find(p => p.name === "Bed facing the window").items.filter(i => i.kind === "nightstand").map(i => [i.name, i.w, i.d, i.h, i.color]))`));
+test("the window layout uses Femi's own wood nightstand with the rattan drawer", async () => {
+  const { BUILTIN, layout } = await loadCore();
+  const ns = JSON.parse(JSON.stringify(BUILTIN.find(p => p.name === "Bed facing the window").items.filter(i => i.kind === "nightstand").map(i => [i.name, i.w, i.d, i.h, i.color])));
   assert.deepEqual(ns, [["Your nightstand, rattan drawer", 17, 17, 22, "#8b4a24"]]);
 });
 
-test("the bed's colour is the sage comforter, and BÖJA is IKEA's 8 in by 16 in egg", () => {
-  const run = loadCore();
-  assert.equal(run("KIND_COLOR.bed"), "#a9ae95");
-  const boja = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => p.items.filter(i => /BÖJA/.test(i.name)).map(i => [i.w, i.d, i.h])))`));
+test("the bed's colour is the sage comforter, and BÖJA is IKEA's 8 in by 16 in egg", async () => {
+  const { BUILTIN, KIND_COLOR } = await loadCore();
+  assert.equal(KIND_COLOR.bed, "#a9ae95");
+  const boja = JSON.parse(JSON.stringify(BUILTIN.map(p => p.items.filter(i => /BÖJA/.test(i.name)).map(i => [i.w, i.d, i.h]))));
   assert.deepEqual(boja, [[[8, 8, 16]], [[8, 8, 16]], [[8, 8, 16]]]);
 });
 
@@ -490,16 +496,16 @@ test("the 3D view models the real pieces: painted wardrobe, LACK shelf, upholste
   assert.match(model("lamp"), /böja/, "a woven bamboo egg");
 });
 
-test("the room wears the Clay and indigo palette: cream walls stay, accents go on textiles and furniture", () => {
-  const run = loadCore();
-  assert.deepEqual(JSON.parse(run("JSON.stringify(THEME)")),
+test("the room wears the Clay and indigo palette: cream walls stay, accents go on textiles and furniture", async () => {
+  const { BUILTIN, KIND_COLOR, THEME } = await loadCore();
+  assert.deepEqual(JSON.parse(JSON.stringify(THEME)),
     { name: "Clay and indigo", walls: "#eadfcc", floor: "#9a5530", sheets: "#ddd3c1", throw: "#b5653f", accent: "#2f4a7a",
       wardrobePaint: "Behr Laurel Garland N390-6", chestPaint: "Behr Cypress Vine N390-7" });
-  assert.deepEqual(JSON.parse(run(`JSON.stringify([KIND_COLOR.rug, KIND_COLOR.dresser, KIND_COLOR.beanbag, KIND_COLOR.wardrobe])`)), ["#c8b48a", "#565d49", "#b5653f", "#68705c"]);
-  const out = JSON.parse(run(`JSON.stringify(BUILTIN.map(p => ({
+  assert.deepEqual(JSON.parse(JSON.stringify([KIND_COLOR.rug, KIND_COLOR.dresser, KIND_COLOR.beanbag, KIND_COLOR.wardrobe])), ["#c8b48a", "#565d49", "#b5653f", "#68705c"]);
+  const out = JSON.parse(JSON.stringify(BUILTIN.map(p => ({
     rugs: p.items.filter(i => i.kind === "rug").every(i => /jute/i.test(i.name) && i.color === KIND_COLOR.rug),
     dressers: p.items.filter(i => i.kind === "dresser").every(i => /painted olive/.test(i.name) && i.color === KIND_COLOR.dresser)
-  })))`));
+  }))));
   for (const p of out) assert.deepEqual(p, { rugs: true, dressers: true });
 });
 
@@ -512,15 +518,8 @@ test("the 3D bed wears linen sheets and pillows, sage shams, an indigo pillow an
   assert.match(html, /function chest\([^)]*\)[\s\S]*?\/painted\//, "painted chests are matte, not wood-grained");
 });
 
-// Pulls one top-level function out of the 3D page and runs it on its own.
-function pageFn(name) {
-  const src = read("index.html").match(new RegExp(`^function ${name}\\([\\s\\S]*?^\\}$`, "m"));
-  assert.ok(src, name + " is a top-level function in index.html");
-  return vm.runInNewContext(`(${src[0]})`, { Math });
-}
-
 test("a pillow is stuffed: thin at the seam, full in the middle, ears at the corners, a dent where a head goes", () => {
-  const pillowPoint = pageFn("pillowPoint"), o = { w: 26, len: 20, t: 6, seed: 1 };
+  const o = { w: 26, len: 20, t: 6, seed: 1 };
   const [, top] = pillowPoint(0, 0, 1, o), [, bottom] = pillowPoint(0, 0, -1, o);
   assert.ok(top - bottom > 5 && top - bottom < 6.5, "about the stuffed thickness in the middle");
   for (const [u, v] of [[1, 0], [-1, 0.3], [0.2, 1], [0.5, -1]]) {
@@ -535,7 +534,7 @@ test("a pillow is stuffed: thin at the seam, full in the middle, ears at the cor
 });
 
 test("the throw lies on the bed, rolls over the edges and hangs outside the frame without passing through it", () => {
-  const drapePoint = pageFn("drapePoint"), bed = { x0: -31, x1: 31, z1: 40, top: 25, r: 2, floor: 0, seed: 3, folds: 1 };
+  const bed = { x0: -31, x1: 31, z1: 40, top: 25, r: 2, floor: 0, seed: 3, folds: 1 };
   assert.deepEqual(Array.from(drapePoint(0, 20, bed), v => +v.toFixed(6)), [0, 25, 20], "flat on top in the middle");
   // signed distance to the bed: a box with its top edges and corners rounded to r, negative inside
   const into = ([x, y, z]) => {
@@ -565,12 +564,12 @@ test("the 3D bed builds its pillows and throw from shaped cloth, not boxes", () 
   assert.match(html, /const knitMat/, "the throw is a chunky knit");
 });
 
-test("the throw only hangs where there is room: never into a wall, a lamp or anything else beside the foot of the bed", () => {
-  const run = loadCore();
-  const room = name => JSON.parse(run(`(() => {
-    state.items = structuredClone(BUILTIN.find(p => p.name === ${JSON.stringify(name)}).items);
+test("the throw only hangs where there is room: never into a wall, a lamp or anything else beside the foot of the bed", async () => {
+  const { BUILTIN, frontDir, state, throwRoom } = await loadCore();
+  const room = name => JSON.parse((() => {
+    state.items = structuredClone(BUILTIN.find(p => p.name === name).items);
     return JSON.stringify(throwRoom(state.items.find(i => i.kind === "bed")));
-  })()`));
+  })());
   // corner: the bed faces N with its east side on the east wall, which is the model's left
   assert.equal(room("Corner bed, maximum storage").left, 0);
   // window: the bed faces W with its south side on the south wall, which is the model's right
@@ -582,18 +581,18 @@ test("the throw only hangs where there is room: never into a wall, a lamp or any
   const centred = room("Centred bed, both sides open");
   assert.ok(centred.left > 6 && centred.right > 6, "the centred bed has both sides open");
   // a tall piece pushed against the foot end of one side takes that side's room away
-  const blocked = JSON.parse(run(`(() => {
+  const blocked = JSON.parse((() => {
     const bed = state.items.find(i => i.kind === "bed");
     state.items.push({ id: "probe", name: "probe", kind: "other", x: bed.x + bed.w + 2, y: bed.y + 4, w: 10, d: 10, h: 60, z: 0, solid: true, headH: 0 });
     const out = throwRoom(bed);
     state.items.pop();
     return JSON.stringify(out);
-  })()`));
-  assert.equal(blocked[{ N: "left", S: "right" }[run(`frontDir(state.items.find(i => i.kind === "bed"))`)]], 2);
+  })());
+  assert.equal(blocked[{ N: "left", S: "right" }[frontDir(state.items.find(i => i.kind === "bed"))]], 2);
 });
 
 test("cloth past the foot of the bed rests on a bench there instead of passing through it, without tearing", () => {
-  const drapePoint = pageFn("drapePoint"), bed = { x0: -31, x1: 31, z1: 40, top: 25, r: 2, floor: 0, seed: 3, folds: 1, rest: 18 };
+  const bed = { x0: -31, x1: 31, z1: 40, top: 25, r: 2, floor: 0, seed: 3, folds: 1, rest: 18 };
   let prev = null;
   for (let px = 20; px <= 50; px += 0.25) {
     for (let pz = 30; pz <= 52; pz += 0.25) {
@@ -610,16 +609,16 @@ test("cloth past the foot of the bed rests on a bench there instead of passing t
   assert.deepEqual(Array.from(side), Array.from(free), "the long sides still hang free");
 });
 
-test("Femi's own photographs hang in the ready-made layouts, every pick at least once", () => {
-  const run = loadCore();
-  const prints = JSON.parse(run("JSON.stringify(PRINTS)"));
+test("Femi's own photographs hang in the ready-made layouts, every pick at least once", async () => {
+  const { $, BUILTIN, PRINTS } = await loadCore();
+  const prints = JSON.parse(JSON.stringify(PRINTS));
   assert.equal(Object.keys(prints).length, 19, "13 from round one, 6 from round two");
   for (const [key, p] of Object.entries(prints)) {
     assert.match(p.file, /^prints\/[a-z0-9-]+\.jpg$/, key);
     assert.ok(fs.existsSync(new URL(p.file, dir)), key + " has its picture");
     assert.ok(p.title && p.place && /^\d{4}-\d{2}$/.test(p.taken) && p.w > 0 && p.h > 0, key + " is described");
   }
-  const art = JSON.parse(run(`JSON.stringify(BUILTIN.flatMap(p => p.items.filter(i => i.kind === "art")))`));
+  const art = JSON.parse(JSON.stringify(BUILTIN.flatMap(p => p.items.filter(i => i.kind === "art"))));
   const used = new Set(art.flatMap(i => i.photos || []));
   assert.deepEqual([...used].sort(), Object.keys(prints).sort(), "every pick hangs somewhere");
   assert.deepEqual([...new Set(art.filter(i => !(i.photos || []).length).map(i => i.name))], ["Framed topo map"], "no made-up pictures left");
@@ -652,7 +651,7 @@ test("in 3D the photos are painted: smooth flat strokes with sharp edges, blende
 });
 
 test("the brush-stroke filter flattens noise, keeps edges sharp and never wraps round the image", () => {
-  const kuwahara = pageFn("kuwahara"), w = 24, h = 12;
+  const w = 24, h = 12;
   const img = (f) => { const d = new Uint8ClampedArray(w * h * 4); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const v = f(x, y), i = (y * w + x) * 4; d.set([v, v, v, 255], i); } return d; };
   const at = (d, x, y) => d[(y * w + x) * 4];
   // a hard edge stays hard: no grey ramp across it
@@ -675,8 +674,7 @@ test("every inline script on both pages parses", async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "planner-syntax-"));
   try {
     for (const page of ["index.html", "plan.html"]) {
-      const scripts = [...read(page).matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/g)].filter(([, attrs]) => !/importmap|json/.test(attrs));
-      assert.ok(scripts.length, page + " has inline scripts");
+      const scripts = [...file(page).matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/g)].filter(([, attrs]) => !/importmap|json/.test(attrs));
       scripts.forEach(([, attrs, body], i) => {
         const file = path.join(tmp, `${page}-${i}.${/module/.test(attrs) ? "mjs" : "cjs"}`);
         fs.writeFileSync(file, body);
@@ -687,9 +685,9 @@ test("every inline script on both pages parses", async () => {
   } finally { fs.rmSync(tmp, { recursive: true }); }
 });
 
-test("every frame is an ornate gilt moulding: stepped bands, a carved band, a linen liner, then the picture", () => {
-  const run = loadCore();
-  const frame = (w, h) => JSON.parse(run(`JSON.stringify(giltFrame(${w}, ${h}))`));
+test("every frame is an ornate gilt moulding: stepped bands, a carved band, a linen liner, then the picture", async () => {
+  const { $, BUILTIN, giltFrame } = await loadCore();
+  const frame = (w, h) => JSON.parse(JSON.stringify(giltFrame(w, h)));
   for (const [w, h] of [[48, 40], [40, 27], [24, 18], [14, 21], [18, 24]]) {
     const f = frame(w, h);
     let edge = 0;
@@ -710,7 +708,7 @@ test("every frame is an ornate gilt moulding: stepped bands, a carved band, a li
   const big = frame(48, 40), carved = big.bands.find(b => b.tone === "carved");
   assert.ok(Math.abs(big.corners.d - (carved.inset + carved.width / 2)) < 1e-9 && big.corners.r > 0 && big.corners.r < carved.width, "large frames carry rosettes centred on the carved band");
   assert.equal(frame(14, 14).corners, null, "small frames go without");
-  const art = JSON.parse(run(`JSON.stringify(BUILTIN.flatMap(p => p.items.filter(i => i.kind === "art").map(i => [i.w > i.d ? i.w : i.d, i.h])))`));
+  const art = JSON.parse(JSON.stringify(BUILTIN.flatMap(p => p.items.filter(i => i.kind === "art").map(i => [i.w > i.d ? i.w : i.d, i.h]))));
   for (const [w, h] of art) { const f = frame(w, h); assert.ok(f.opening.w > 0 && f.opening.h > 0, `${w}x${h} keeps a picture`); }
 });
 

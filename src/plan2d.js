@@ -1,87 +1,4 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bedroom planner</title>
-<link rel="stylesheet" href="core.css">
-<style>
-  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; padding: 6px 16px 12px; }
-  @media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); } }
-  .left { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
-  .view { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-  .view h2 { flex: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .view svg { flex: 1; min-height: 0; width: 100%; height: 100%; display: block; user-select: none; }
-  #main { flex: 1; min-height: 0; display: flex; }
-  #main .view { flex: 1; }
-  #main .view svg { touch-action: none; }
-  #thumbs { flex: none; height: 150px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-  #thumbs .view { cursor: pointer; padding: 6px 8px; }
-  #thumbs .view:hover { border-color: var(--accent); }
-  #thumbs .view svg { pointer-events: none; }
-  #thumbs h2 { font-size: 11px; margin-bottom: 2px; }
-  .legend { flex: none; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--muted); align-items: center; }
-  .legend span { display: inline-flex; align-items: center; gap: 6px; }
-  .legend i { width: 22px; height: 12px; display: inline-block; background: #7c93c4; border: 2px solid var(--ink); }
-  .legend i.near { opacity: .55; border: 1.5px dashed var(--ink); }
-  .legend i.far { background: transparent; border: 1px dotted var(--muted); }
-  svg text { font-family: inherit; fill: var(--ink); }
-  .t-muted { fill: var(--muted); }
-  .floor { fill: var(--floor); }
-  .gridline { stroke: var(--grid); stroke-width: 1; vector-effect: non-scaling-stroke; }
-  .wall { fill: none; stroke: var(--wall); stroke-width: 3; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
-  .bump { fill: var(--bump); }
-  .dim { stroke: var(--muted); stroke-width: 1; vector-effect: non-scaling-stroke; fill: none; }
-  .op { stroke-width: 7; vector-effect: non-scaling-stroke; stroke-linecap: butt; }
-  .door { stroke: var(--door); } .closet { stroke: var(--closet); } .window { stroke: var(--window); }
-  .f-door { fill: var(--door); } .f-closet { fill: var(--closet); } .f-window { fill: var(--window); }
-  .item { stroke: var(--ink); stroke-width: 1; vector-effect: non-scaling-stroke; fill-opacity: .6; cursor: grab; }
-  .item.sel { stroke: var(--accent); stroke-width: 2.5; }
-  .item.bad { stroke: var(--warn); stroke-width: 2.5; stroke-dasharray: 4 3; }
-  .headstrip { fill: var(--ink); fill-opacity: .4; }
-  .deco { fill: none; stroke: var(--ink); stroke-opacity: .5; stroke-width: 1; vector-effect: non-scaling-stroke; }
-  .deco-fill { fill: #fff; fill-opacity: .6; stroke: var(--ink); stroke-opacity: .5; stroke-width: 1; vector-effect: non-scaling-stroke; }
-  .deco-dark { fill: var(--ink); fill-opacity: .55; stroke: none; }
-  .gilt { stroke: #6e5220; stroke-opacity: .55; stroke-width: 1; vector-effect: non-scaling-stroke; } /* fill comes from giltFrame */
-  .carving { fill: none; stroke: #6b4d20; stroke-width: .5; stroke-dasharray: .9 .7; }
-  .gap { stroke: var(--floor); stroke-width: 7; vector-effect: non-scaling-stroke; }
-  .jamb { stroke: var(--wall); stroke-width: 3; vector-effect: non-scaling-stroke; }
-  .glass { fill: #cfe8f5; stroke: var(--window); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
-  .frame { fill: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; }
-  .pane { stroke: var(--window); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
-  .ev { stroke: var(--ink); vector-effect: non-scaling-stroke; cursor: grab; }
-  .ev.flush { fill-opacity: .92; stroke-width: 2; }
-  .ev.near { fill-opacity: .38; stroke-width: 1.2; stroke-dasharray: 6 3; }
-  .ev.far { fill-opacity: .04; stroke-width: 1; stroke-opacity: .3; stroke-dasharray: 2 4; }
-  .ev.sel { stroke: var(--accent); stroke-opacity: 1; stroke-width: 2.5; }
-  .lab-far { fill: var(--muted); opacity: .55; }
-  .wardrobe-swing { stroke: var(--muted); fill: var(--muted); }
-  .swing { stroke-width: 1.5; vector-effect: non-scaling-stroke; fill-opacity: .08; stroke-dasharray: 5 3; }
-  .leaf { stroke-width: 2.5; vector-effect: non-scaling-stroke; }
-  .clear { stroke: var(--accent); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 3 3; }
-  .clear-t { fill: var(--accent); font-weight: 600; }
-  .lux-t { font-weight: 700; paint-order: stroke; stroke: #fff; stroke-width: 1.2px; }
-  .lux-scale { width: 160px; height: 10px; border-radius: 3px; background: linear-gradient(90deg, #1f2a44, #6b4f7a, #d9825b, #ffd36b, #fff6d6); }
-  #lightBtn.on { border-color: var(--accent); color: var(--accent); }
-  @media print { body { height: auto; overflow: visible; } aside, header p { display: none; } main { grid-template-columns: 1fr; } #main { height: 150mm; } .card { border: none; } }
-</style>
-</head>
-<body>
-<header>
-  <h1>Bedroom planner</h1>
-  <p>Inches throughout. Click a small view to enlarge it; drag furniture in the big one. <a href="./">Open the 3D view</a></p>
-</header>
-<main>
-  <div class="left">
-    <div id="main"></div>
-    <div class="legend" id="legend"></div>
-    <div id="thumbs"></div>
-  </div>
-  <aside id="side"></aside>
-</main>
-<script src="core.js"></script>
-<script>
-"use strict";
+import { $, alongWall, buildSelForm, canTurn, clearances, draw, ENDS, esc, footprint, ftin, giltFrame, hooks, initPlanner, isBad, kindOf, lightReport, luxColor, moveTo, n, opSeg, parts, photo, photoPanes, PRINTS, READ_LUX, ROOM_LUX, sel, select, selId, state, swingGeom, tier, turnOf, wallGap, WALLS, wardrobeSwings } from "./core.js";
 const VIEWS = ["plan", "N", "E", "S", "W"];
 let mainView = "plan", showLight = false;
 let lastLight = null;
@@ -419,9 +336,6 @@ const endDrag = () => { drag = null; };
 mainEl.addEventListener("pointerup", endDrag);
 mainEl.addEventListener("pointercancel", endDrag);
 
-onDraw = drawViews;
+hooks.onDraw = drawViews;
 document.addEventListener("click", e => { if (e.target.id === "lightBtn") { showLight = !showLight; drawViews(); } });
 layoutViews(); initPlanner();
-</script>
-</body>
-</html>

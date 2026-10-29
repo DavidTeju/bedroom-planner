@@ -1,141 +1,13 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bedroom planner 3D</title>
-<meta name="description" content="Three ways to lay out one 129 by 164 inch bedroom, in 3D. Turn the room, switch layouts and open the doors.">
-<meta property="og:type" content="website">
-<meta property="og:title" content="Bedroom planner">
-<meta property="og:description" content="Three ways to lay out one 129 by 164 inch bedroom, in 3D. Turn the room, switch layouts and open the doors.">
-<meta property="og:image" content="https://bedroom.davidteju.dev/og/window.png">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:url" content="https://bedroom.davidteju.dev/">
-<meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="core.css">
-<style>
-  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; padding: 6px 16px 12px; }
-  @media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); } }
-  #stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 10px;
-    background: linear-gradient(#eef1f3, #e4e0d5); }
-  #stage canvas { display: block; touch-action: none; outline: none; }
-  #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-  .bar { position: absolute; left: 10px; right: 10px; top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; pointer-events: none; }
-  .bar button { pointer-events: auto; background: rgba(255, 253, 248, .93); padding: 4px 9px; font-size: 12px; }
-  .bar button.on { border-color: var(--accent); color: var(--accent); }
-  .bar select { pointer-events: auto; width: auto; background: rgba(255, 253, 248, .93); padding: 4px 6px; font-size: 12px; }
-  .bar .menu { pointer-events: auto; position: relative; }
-  .bar .menu summary { list-style: none; cursor: pointer; background: rgba(255, 253, 248, .93); border: 1px solid var(--line); border-radius: 6px;
-    padding: 4px 9px; font-size: 12px; text-transform: none; letter-spacing: normal; color: var(--ink); margin: 0; }
-  .bar .menu summary::-webkit-details-marker { display: none; }
-  .bar .menu summary::after { content: " ▾"; color: var(--muted); }
-  .bar .menu[open] summary { border-color: var(--accent); }
-  .bar .menu > div { position: absolute; top: calc(100% + 4px); left: 0; z-index: 2; background: var(--panel); border: 1px solid var(--line);
-    border-radius: 8px; padding: 8px 12px 0; box-shadow: 0 4px 14px rgba(0, 0, 0, .12); white-space: nowrap; }
-  .bar .menu label.check { color: var(--ink); font-size: 13px; }
-  /* Simulate lights and its bulb settings read as one control. */
-  .bar .lights { pointer-events: auto; display: inline-flex; align-items: center; flex-wrap: wrap; background: rgba(255, 253, 248, .93);
-    border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-  .bar .lights > button { border: none; border-radius: 0; background: none; display: inline-flex; align-items: center; gap: 6px; }
-  .bar .lights > button.on { background: #fff3d1; color: #7a4d00; }
-  .lights .glow { width: 9px; height: 9px; border-radius: 50%; background: #c9c3b5; }
-  .lights button.on .glow { background: var(--bulb, #ffc46b); box-shadow: 0 0 6px 2px var(--bulb, #ffc46b); }
-  .lights .bulb { display: inline-flex; align-items: center; gap: 8px; padding: 3px 9px; border-left: 1px solid var(--line); font-size: 12px; }
-  .lights .bulb[hidden] { display: none; }
-  .lights .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
-  .bar .lights .seg button { border: none; border-radius: 0; background: none; padding: 2px 8px; font-size: 12px; }
-  .bar .lights .seg button.on { background: var(--accent); color: #fff; }
-  .lights .bulb[data-mode=white] .colour-only, .lights .bulb[data-mode=colour] .white-only { display: none; }
-  .lights input[type=range] { -webkit-appearance: none; appearance: none; width: 120px; height: 8px; padding: 0; border: none; border-radius: 4px;
-    background: var(--kelvin-track); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .14); }
-  .lights input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #fff;
-    border: 1px solid #8a8577; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); cursor: pointer; }
-  .lights input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 1px solid #8a8577; cursor: pointer; }
-  .lights input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: var(--kelvin-track); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .14); }
-  .lights .bulb b { min-width: 42px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .lights input[type=color] { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; padding: 0; border: 1px solid var(--line);
-    border-radius: 50%; background: none; cursor: pointer; }
-  .lights input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
-  .lights input[type=color]::-webkit-color-swatch { border: none; border-radius: 50%; }
-  .lights input[type=color]::-moz-color-swatch { border: none; border-radius: 50%; }
-  /* Narrow screens put the bulb settings on a second line inside the group. */
-  @media (max-width: 760px) { .lights .bulb { flex-basis: 100%; border-left: none; border-top: 1px solid var(--line); }
-    .bar .lights > button { flex: 1; } .lights input[type=range] { flex: 1; width: auto; } }
-  #help { position: absolute; left: 10px; right: 10px; bottom: 8px; margin: 0; font-size: 12px; color: var(--muted); pointer-events: none;
-    text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
-  #tip { position: absolute; pointer-events: none; background: var(--ink); color: #fff; font-size: 12px; padding: 3px 7px; border-radius: 5px;
-    white-space: nowrap; transform: translate(12px, 14px); }
-  .tag { font: 600 11px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--ink); background: rgba(255, 253, 248, .9);
-    border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; white-space: nowrap; }
-  .tag.gap { color: var(--accent); border-color: var(--accent); }
-  .tag.bad { color: var(--warn); border-color: var(--warn); }
-  .tag.compass { background: none; border: none; color: var(--muted); font-size: 13px; text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
-  #fail[hidden] { display: none; }
-  #fail { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); }
-  #printShot { display: none; }
-  @media print { aside, header p, .bar, #help { display: none; } main { grid-template-columns: 1fr; } #stage { height: auto; } #stage canvas, #labels { display: none !important; } #printShot { display: block; width: 100%; height: auto; } }
-  /* Phones get a viewer: the layouts as tabs and no editing panel. */
-  #tabs, #about { display: none; }
-  body.viewer header > p, body.viewer aside { display: none; }
-  body.viewer main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; gap: 8px; padding: 4px 10px 10px; }
-  body.viewer header { padding: 8px 10px 4px; }
-  body.viewer #tabs { display: flex; gap: 6px; width: 100%; overflow-x: auto; padding-bottom: 2px; }
-  #tabs button { flex: none; white-space: nowrap; font-size: 13px; padding: 5px 10px; background: var(--panel); }
-  #tabs button.on { border-color: var(--accent); color: var(--accent); }
-  body.viewer #about:not([hidden]) { display: block; }
-  #about { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 13px; }
-  #about summary { font-size: 13px; font-weight: 600; text-transform: none; letter-spacing: normal; color: var(--ink); margin: 0; }
-  #about p { margin: 6px 0 0; color: var(--muted); max-height: 30vh; overflow-y: auto; }
-  /* ?shot: only the room, for the link-preview pictures */
-  body.shot header, body.shot aside, body.shot .bar, body.shot #help, body.shot #labels, body.shot #about { display: none !important; }
-  body.shot main { display: block; padding: 0; }
-  body.shot #stage { height: 100%; border: none; border-radius: 0; }
-</style>
-<script type="importmap">
-{ "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
-} }
-</script>
-</head>
-<body>
-<header>
-  <h1>Bedroom planner · 3D</h1>
-  <p>Inches throughout. Same room and saved plans as the <a href="plan.html">2D plan</a>; an edit in one shows in the other.</p>
-  <nav id="tabs" aria-label="Layouts"></nav>
-</header>
-<main>
-  <div id="stage">
-    <div id="labels"></div>
-    <div class="bar" id="bar">
-      <select id="viewSel" aria-label="View"><option value="3d">3D</option><option value="top">Top</option><option value="N">North wall</option><option value="E">East wall</option><option value="S">South wall</option><option value="W">West wall</option><option value="inside">Stand inside</option><option value="" hidden>Your view</option></select>
-      <button id="wallBtn"></button>
-      <details id="showMenu" class="menu"><summary>Show</summary><div><label class="check"><input type="checkbox" data-toggle="grid"> Grid</label><label class="check"><input type="checkbox" data-toggle="swings"> Door swings</label><label class="check"><input type="checkbox" data-toggle="names"> Names</label></div></details>
-      <span class="lights"><button data-toggle="lamps"><i class="glow"></i>Simulate lights</button><span id="bulbCtl" class="bulb" hidden>
-        <span class="seg" role="group" aria-label="Bulb"><button data-bulb-mode="white">White</button><button data-bulb-mode="colour">Colour</button></span>
-        <input class="white-only" id="kelvin" type="range" min="2500" max="6500" step="100" value="2700" aria-label="White temperature"><b class="white-only" id="kelvinVal">2700K</b>
-        <input class="colour-only" id="bulbColor" type="color" value="#ff4fa3" aria-label="Bulb colour"></span></span>
-    </div>
-    <p id="help">Drag a piece to move it · Shift-drag to raise or lower it · drag empty space to orbit · scroll to zoom · right-drag to pan · click a door to open it</p>
-    <div id="tip" hidden></div>
-    <div id="fail" hidden>The 3D view could not start. It loads three.js from cdn.jsdelivr.net, so it needs a connection and a browser with WebGL. The 2D plan works offline.</div>
-  </div>
-  <details id="about" hidden><summary>About this layout</summary><p id="aboutText"></p></details>
-  <aside id="side"></aside>
-</main>
-<script src="core.js"></script>
-<script>
-"use strict";
-setTimeout(() => { if (!window.__planner) document.getElementById("fail").hidden = false; }, 8000);
-</script>
-<script type="module">
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
+import { $, buildSelForm, BUILTIN, clearances, currentPlan, draw, esc, frontDir, giltFrame, hooks, initPlanner, isBad, kelvinRGB, kindOf, layout, lightSources, load, moveTo, n, openPlan, OPPOSITE, opSeg, parts, photo, photoPanes, PRINTS, sel, select, selId, state, swingGeom, THEME, THROW_DROP, throwRoom, topOf, turnOf, wardrobeSwings } from "./core.js";
+import { drapePoint, pillowPoint } from "./cloth.js";
+import { kuwahara } from "./kuwahara.js";
+import { stepDoor } from "./doors.js";
 
 const fmt = n; // the core's one-decimal formatter
 // ?shot shows only the room; it is how the link-preview pictures are taken.
@@ -420,31 +292,6 @@ function carvedMat(len, across, vertical = false) {
     return new THREE.MeshStandardMaterial({ map: t, bumpMap: t, bumpScale: 1.2, metalness: 0.7, roughness: 0.42 });
   });
 }
-// A painter's filter (Kuwahara): each pixel takes the average colour of whichever of the four
-// r-pixel squares touching it varies least, so flat areas lose their speckle while edges stay sharp.
-// Squares are clipped to the image, so nothing wraps round from the far side. RGBA in, RGBA out.
-function kuwahara(src, w, h, r) {
-  const W = w + 1, sum = [0, 1, 2, 3, 4].map(() => new Float64Array(W * (h + 1)));
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const i = (y * w + x) * 4, l = 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
-    const v = [src[i], src[i + 1], src[i + 2], l, l * l], o = (y + 1) * W + x + 1;
-    for (let c = 0; c < 5; c++) sum[c][o] = v[c] + sum[c][o - 1] + sum[c][o - W] - sum[c][o - W - 1];
-  }
-  const box = (c, x0, y0, x1, y1) => sum[c][(y1 + 1) * W + x1 + 1] - sum[c][y0 * W + x1 + 1] - sum[c][(y1 + 1) * W + x0] + sum[c][y0 * W + x0];
-  const out = new Uint8ClampedArray(src.length);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    let best = Infinity, col = null;
-    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      const x0 = Math.max(0, Math.min(x, x + sx * r)), x1 = Math.min(w - 1, Math.max(x, x + sx * r));
-      const y0 = Math.max(0, Math.min(y, y + sy * r)), y1 = Math.min(h - 1, Math.max(y, y + sy * r));
-      const n = (x1 - x0 + 1) * (y1 - y0 + 1), mean = box(3, x0, y0, x1, y1) / n, v = box(4, x0, y0, x1, y1) / n - mean * mean;
-      if (v < best) { best = v; col = [0, 1, 2].map(c => box(c, x0, y0, x1, y1) / n); }
-    }
-    const i = (y * w + x) * 4;
-    out[i] = col[0]; out[i + 1] = col[1]; out[i + 2] = col[2]; out[i + 3] = src[i + 3];
-  }
-  return out;
-}
 // One of Femi's prints, cropped to fill a w by h pane the way a print shop would, then painted so it
 // sits in the flat-shaded room like everything else: every frame keeps the same level of detail,
 // the painter's filter turns that detail into smooth strokes, and the texture is blended, not blocky.
@@ -664,52 +511,6 @@ const rugMat = (c, name, aspect) => cached(`rug${c}/${/jute/.test(name)}/${aspec
   })
 }));
 
-// A stuffed pillow, lying flat: u runs across its width and v along its length, both -1 to 1, and
-// side is 1 for the top and -1 for the underside. The two halves meet at a seam round the edge, the
-// stuffing pulls the middle of each edge in so the corners stick out as ears, the underside settles
-// flatter than the top, creases fan in from each corner, and `dent` sinks the middle where a head goes.
-function pillowPoint(u, v, side, o) {
-  const { w, len, t, seed = 0, dent = 0 } = o;
-  const puff = Math.pow(Math.max(0, (1 - u * u) * (1 - v * v)), 0.55), inset = 0.22 * t;
-  const x = u * (w / 2 - inset * (1 - v * v)), z = v * (len / 2 - inset * (1 - u * u));
-  const cu = 1 - Math.abs(u), cv = 1 - Math.abs(v), corner = Math.exp(-(cu * cu + cv * cv) / 0.07);
-  const crease = 0.1 * t * corner * Math.sin(Math.atan2(cv, cu) * 9 + seed * 2.1 + side) * Math.sqrt(puff);
-  const lump = 0.04 * t * Math.sin(u * 3.1 + seed) * Math.sin(v * 2.6 + seed * 1.7) * puff;
-  let y = (side > 0 ? 1 : 0.75) * side * (t / 2) * puff + crease + lump;
-  if (side > 0) y -= dent * 0.32 * t * Math.exp(-((u / 0.45) ** 2) - ((v / 0.5) ** 2)) * puff;
-  return [x, y, z];
-}
-// Where a point of a cloth laid flat over a bed ends up once it drapes. The bed's top is at `top`,
-// between x0 and x1 and up to its foot at z1, with edges rounded to radius r. Cloth past an edge rolls
-// over it and hangs straight down, past a corner it falls in a cone so the corner hangs lowest, it
-// gathers into folds the further it hangs, and any that reaches the floor lies on it. `rest` is the
-// height of anything past the foot that the cloth lies on.
-function drapePoint(px, pz, b) {
-  const { x0, x1, z1, top, r, floor = 0, seed = 0, folds = 1 } = b;
-  const sx = px > (x0 + x1) / 2 ? 1 : -1, edge = sx > 0 ? x1 : x0;
-  const ex = sx * (px - edge) + r, ez = pz - z1 + r;
-  if (ex <= 0 && ez <= 0) return [px, top, pz];
-  // how far past the start of the rounding, which way it falls, and where it is along the edge
-  let e, dir, s;
-  if (ez <= 0) { e = ex; dir = [sx, 0]; s = ez; }
-  else if (ex <= 0) { e = ez; dir = [0, 1]; s = ez * Math.PI / 2 - ex; }
-  else { e = Math.hypot(ex, ez); const phi = Math.atan2(ez, ex); dir = [sx * Math.cos(phi), Math.sin(phi)]; s = e * phi; }
-  const arc = Math.PI * r / 2;
-  let out = e < arc ? r * Math.sin(e / r) : r, drop = e < arc ? r * (1 - Math.cos(e / r)) : r + e - arc;
-  const hang = folds * Math.min(2.6, Math.max(0, e - r) * 0.2);
-  const fold = hang * (0.5 + 0.3 * Math.sin(s * 0.75 + seed) + 0.2 * Math.sin(s * 1.9 + seed * 3) * Math.cos(s * 0.31 + seed));
-  out += fold;
-  drop -= 0.6 * fold * Math.min(1, Math.max(0, e - arc) / 8);
-  const cx = ex > 0 ? edge - sx * r : px, cz = ez > 0 ? z1 - r : pz;
-  // a surface past the foot, such as a bench, catches the cloth; the catch fades in round the corner
-  // as the cloth moves out over the foot, so the long side's hang meets it without a tear
-  if (b.rest !== undefined && ez > 0) {
-    const k = Math.min(1, Math.max(0, dir[1] * out / r)), limit = (top - b.rest) / Math.max(k * k * (3 - 2 * k), 1e-6);
-    drop = Math.min(drop, limit);
-  }
-  if (top - drop < floor) { out += floor - (top - drop); drop = top - floor; }
-  return [cx + dir[0] * out, top - drop, cz + dir[1] * out];
-}
 // A grid of points as one smooth surface; at(i, j) gives each point and its texture coordinate.
 function gridGeometry(nu, nv, at, flip = false) {
   const pos = [], uv = [], idx = [];
@@ -1558,7 +1359,7 @@ function fly(view, instant) {
 }
 controls.addEventListener("start", () => { flight = null; });
 // Arrow keys follow the screen: up is away from the camera, snapped to the nearest compass direction.
-nudge = (dx, dy) => {
+hooks.nudge = (dx, dy) => {
   const f = controls.target.clone().sub(camera.position);
   const fwd = Math.abs(f.x) > Math.abs(f.z) ? [Math.sign(f.x), 0] : [0, Math.sign(f.z) || -1];
   return [-fwd[1] * dx - fwd[0] * dy, fwd[0] * dx - fwd[1] * dy];
@@ -1703,7 +1504,7 @@ function resize() {
 new ResizeObserver(resize).observe(stage);
 let last = performance.now();
 function frame(now) {
-  const dt = Math.min((now - last) / 1000, 0.1);
+  const elapsed = now - last;
   last = now;
   if (flight) {
     const k = Math.min((now - flight.start) / 650, 1), e = k * k * (3 - 2 * k);
@@ -1713,7 +1514,7 @@ function frame(now) {
   }
   for (const d of doorPivots) {
     const s = doorOpen[d.id];
-    s.t = clamp(s.t + (s.want ? 1 : -1) * dt / 0.55, 0, 1);
+    stepDoor(s, elapsed);
     d.leaf.rotation.y = d.shut + d.turn * s.t * s.t * (3 - 2 * s.t);
   }
   controls.update();
@@ -1723,7 +1524,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-onDraw = () => { sync(); drawTabs(); };
+hooks.onDraw = () => { sync(); drawTabs(); };
 // Printing lays the page out again at paper width, but the canvas keeps its on-screen pixel size
 // and the render loop does not redraw it for the printout. So print a still picture of the view.
 const printShot = Object.assign(document.createElement("img"), { id: "printShot", alt: "3D view of the room" });
@@ -1733,7 +1534,7 @@ async function takePrintShot() {
   printShot.src = canvas.toDataURL("image/png");
   await printShot.decode();
 }
-onPrint = takePrintShot;
+hooks.onPrint = takePrintShot;
 addEventListener("beforeprint", () => { if (!printShot.src) takePrintShot(); }); // Ctrl/Cmd+P skips the button
 addEventListener("afterprint", () => printShot.removeAttribute("src"));
 setViewer();
@@ -1753,6 +1554,3 @@ window.__planner = {
     return { x: b.left + (p.x + 1) / 2 * b.width, y: b.top + (1 - p.y) / 2 * b.height };
   }
 };
-</script>
-</body>
-</html>

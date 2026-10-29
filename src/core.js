@@ -1,9 +1,8 @@
-"use strict";
 // Shared by plan.html (2D) and index.html (3D): the measured room, the ready-made
 // layouts, saved state, the collision rules and the sidebar. Each page supplies only its own view.
-const KEY = "bedroom-planner-v1";
-const PLANS_KEY = "bedroom-planner-plans-v1";
-const DEFAULT = {
+export const KEY = "bedroom-planner-v1";
+export const PLANS_KEY = "bedroom-planner-plans-v1";
+export const DEFAULT = {
   planId: null,
   room: { W: 129, L: 164, bx: 31, by: 48, H: 111, flush: 3, near: 24 },
   openings: [
@@ -16,9 +15,9 @@ const DEFAULT = {
   ]
 };
 // Femi's own bench, measured 46 x 16; its 18 in height is read off photos.
-const BENCH = "Tufted storage bench";
+export const BENCH = "Tufted storage bench";
 // name, width, depth, height, off floor, colour, solid, kind
-const PRESETS = [
+export const PRESETS = [
   ["Dresser", 36, 18, 34, 0, "#b98b5e", true, "dresser"], ["Tall drawers", 28, 19, 48, 0, "#b98b5e", true, "dresser"],
   ["Wardrobe", 39, 23, 79, 0, "#a98f6f", true, "wardrobe"], ["Clothes rack", 48, 18, 65, 0, "#9aa3ad", true, "rack"],
   ["Shoe cabinet", 31, 9, 40, 0, "#c7b08e", true, "shoe"], ["Bench", 48, 16, 18, 0, "#a9825a", true, "bench"], [BENCH, 46, 16, 18, 0, "#4a4d55", true, "ottoman"],
@@ -31,21 +30,21 @@ const PRESETS = [
   ["Framed art", 24, 1, 30, 50, "#efe4cc", true, "art"], ["Wall hanging", 30, 1, 45, 40, "#3f5f9e", true, "textile"], ["Peg rail with gear", 36, 2, 20, 50, "#c9b592", true, "pegs"],
   ["Custom box", 24, 24, 24, 0, "#bdbdbd", true, "other"]
 ];
-const KINDS = { bed: "Bed", bench: "Bench", ottoman: "Upholstered storage bench", dresser: "Dresser / drawers", wardrobe: "Wardrobe", rack: "Clothes rack", shoe: "Shoe storage",
+export const KINDS = { bed: "Bed", bench: "Bench", ottoman: "Upholstered storage bench", dresser: "Dresser / drawers", wardrobe: "Wardrobe", rack: "Clothes rack", shoe: "Shoe storage",
   nightstand: "Nightstand", shelf: "Shelving", ladder: "Ladder shelf", beanbag: "Bean bag", board: "Snowboard on a wall rack", boots: "Snowboard boots", chair: "Chair", rug: "Rug", mirror: "Mirror",
   art: "Framed art", textile: "Wall hanging", pegs: "Peg rail with gear", lamp: "Lamp", sconce: "Wall sconce", plant: "Plant", other: "Plain box" };
 // Femi's palette, Clay and indigo. The walls are rented cream plaster and can't be painted, so the
 // colour comes from what he owns (sage wardrobe and comforter, wood, cane, black-brown) plus a
 // terracotta throw and bean bag, an indigo pillow echoing his Adire, jute rugs and olive-painted chests.
 // The wardrobe is painted Behr Laurel Garland; chests go one step darker on the same Behr strip.
-const THEME = { name: "Clay and indigo", walls: "#eadfcc", floor: "#9a5530", sheets: "#ddd3c1", throw: "#b5653f", accent: "#2f4a7a",
+export const THEME = { name: "Clay and indigo", walls: "#eadfcc", floor: "#9a5530", sheets: "#ddd3c1", throw: "#b5653f", accent: "#2f4a7a",
   wardrobePaint: "Behr Laurel Garland N390-6", chestPaint: "Behr Cypress Vine N390-7" };
 // Starting points that ship with the page.
-const KIND_COLOR = { bed: "#a9ae95", bench: "#a9825a", ottoman: "#4a4d55", dresser: "#565d49", wardrobe: "#68705c", rack: "#9aa3ad", shoe: "#2a2421",
+export const KIND_COLOR = { bed: "#a9ae95", bench: "#a9825a", ottoman: "#4a4d55", dresser: "#565d49", wardrobe: "#68705c", rack: "#9aa3ad", shoe: "#2a2421",
   nightstand: "#8b4a24", shelf: "#9c7b55", ladder: "#b08a62", beanbag: "#b5653f", board: "#2f5d7c", boots: "#2b2d33", chair: "#7fae8f", rug: "#c8b48a", mirror: "#9fc5d8", lamp: "#e3c66b", sconce: "#e3c66b", plant: "#7fae8f",
   art: "#efe4cc", textile: "#3f5f9e", pegs: "#c9b592", other: "#bdbdbd" };
 // Femi's own photographs, picked for the walls. Each file is a 1600 px copy with no location or camera data.
-const PRINTS = {
+export const PRINTS = {
   "dunes-sundown": { title: "Great Sand Dunes at sundown", place: "Great Sand Dunes National Park, Colorado", taken: "2025-06", w: 1200, h: 1600 },
   "tents-under-stars": { title: "Tents under the stars", place: "Carson National Forest, New Mexico", taken: "2025-05", w: 1200, h: 1600 },
   "shi-shi-sea-stack": { title: "Sea stack at sunset", place: "Shi Shi Beach, Olympic National Park", taken: "2026-02", w: 1200, h: 1600 },
@@ -69,7 +68,7 @@ const PRINTS = {
 for (const [key, p] of Object.entries(PRINTS)) p.file = `prints/${key}.jpg`;
 // The panes of a frame pw by ph: one photo fills it; several sit in a grid of up to three across.
 // x is each pane's centre from the frame's middle, y its bottom edge up from the frame's bottom.
-function photoPanes(photos, pw, ph) {
+export function photoPanes(photos, pw, ph) {
   const cols = Math.min(3, photos.length), rows = Math.ceil(photos.length / cols), gap = photos.length > 1 ? Math.min(pw, ph) * 0.04 : 0;
   const cw = (pw - gap * (cols - 1)) / cols, ch = (ph - gap * (rows - 1)) / rows;
   return photos.map((key, i) => ({ key, w: cw, h: ch, x: -pw / 2 + cw / 2 + (i % cols) * (cw + gap), y: ph - ch - Math.floor(i / cols) * (ch + gap) }));
@@ -78,7 +77,7 @@ function photoPanes(photos, pw, ph) {
 // outside in: a gilt lip, a dark cove, a carved band and a bright bead, then a linen liner and the
 // picture. inset is each band's distance from the outer edge; rise how far it stands off the wall.
 // Mouldings 2 in or wider carry a rosette at each corner, d in from both edges.
-function giltFrame(w, h) {
+export function giltFrame(w, h) {
   const short = Math.min(w, h), fw = Math.min(4.5, Math.max(1.25, short * 0.12));
   const liner = Math.min(1.75, Math.max(0.4, short * 0.045)), depth = 0.5 + fw / 9;
   let inset = 0;
@@ -95,14 +94,14 @@ function giltFrame(w, h) {
   };
 }
 // [name, kind, x, y, width, depth, height, off floor, headboard side], optionally ending in extra fields such as { photos }
-const pc = (row, i) => {
+export const pc = (row, i) => {
   const extra = typeof row[row.length - 1] === "object" ? row[row.length - 1] : {};
   const [name, kind, x, y, w, d, h, z = 0, headSide = ""] = typeof row[row.length - 1] === "object" ? row.slice(0, -1) : row;
   return { id: kind + i, name, kind, x, y, w, d, h, z, color: KIND_COLOR[kind], solid: kind !== "rug", headH: headSide ? 46 : 0, headT: 3, headSide: headSide || "S", ...extra };
 };
-const photo = (...photos) => ({ photos });
-const layout = (id, name, note, why, rows) => ({ id, name, note, why, items: rows.map(pc) });
-const BUILTIN = [
+export const photo = (...photos) => ({ photos });
+export const layout = (id, name, note, why, rows) => ({ id, name, note, why, items: rows.map(pc) });
+export const BUILTIN = [
   layout("b3", "Bed facing the window", "wake to light",
     "Bed turned with its head on the east wall and its foot toward the window, so the middle of the room is one open floor. Your green VILHATTEN wardrobe fills the north-west corner facing south, with the black LACK shoe shelf beside it and clear of the door swing. Its doors open onto clear floor: the MALM tall chest starts on the west wall just past them. A ladder shelf leans on the in-push facing south, under the Capitol Reef print. Your wood nightstand stands at the head of the bed's open side. The bench sits across the foot of the bed. The snowboard hangs upright on the south wall at the window end of the bench, with its boots on a tray under it, so it sits in the dead end beside the floor lamp. No ceiling light: a floor lamp stands in the window corner, a plug-in swing-arm sconce over the bed's head corner, just above the headboard, is the reading light, and your BÖJA, Mika and PELARBOJ lamps sit on the chest, the nightstand and the top of the shoe shelf. Tightest walkway is 27 in, between the bench and the window wall; the lamp sits at its dead end.", [
     ["Bed", "bed", 43, 98, 86, 66, 24, 0, "E"], [BENCH, "ottoman", 27, 117, 16, 46, 18],
@@ -135,33 +134,33 @@ const BUILTIN = [
 ];
 // Shareable addresses. /window/ and the others are small pages with their own link preview
 // that send people on to /?layout=window, which opens that layout.
-const LINKS = { window: "b3", corner: "a1", centred: "a3" };
-const linkOf = p => { const slug = Object.keys(LINKS).find(k => LINKS[k] === p.id); return slug ? `/${slug}/` : null; };
-function linkedPlan(search) {
+export const LINKS = { window: "b3", corner: "a1", centred: "a3" };
+export const linkOf = p => { const slug = Object.keys(LINKS).find(k => LINKS[k] === p.id); return slug ? `/${slug}/` : null; };
+export function linkedPlan(search) {
   const slug = (/[?&]layout=([\w-]+)/.exec(search) || [])[1];
   return slug && Object.hasOwn(LINKS, slug) ? BUILTIN.find(p => p.id === LINKS[slug]) : null;
 }
-const WALLS = { N: "North", E: "East", S: "South", W: "West" };
-const ENDS = { N: ["W", "E"], E: ["N", "S"], S: ["E", "W"], W: ["S", "N"] };
-const CLOCKWISE = { N: "E", E: "S", S: "W", W: "N" };
+export const WALLS = { N: "North", E: "East", S: "South", W: "West" };
+export const ENDS = { N: ["W", "E"], E: ["N", "S"], S: ["E", "W"], W: ["S", "N"] };
+export const CLOCKWISE = { N: "E", E: "S", S: "W", W: "N" };
 
-let state = load();
-let selId = null;
-let storageOk = true;
-let plans = loadPlans();
-let armedKey = null, armTimer = null;
+export let state = load();
+export let selId = null;
+export let storageOk = true;
+export let plans = loadPlans();
+export let armedKey = null, armTimer = null;
 
-function loadPlans() {
+export function loadPlans() {
   try { return JSON.parse(localStorage.getItem(PLANS_KEY) || "[]"); }
   catch (e) { console.warn("Could not read saved plans:", e); storageOk = false; return []; }
 }
-function savePlans() {
+export function savePlans() {
   try { localStorage.setItem(PLANS_KEY, JSON.stringify(plans)); }
   catch (e) { console.warn("Could not save plans:", e); storageOk = false; }
 }
 
 // Fill in fields added after a layout was saved, so old saves and imports keep working.
-function normalize(s) {
+export function normalize(s) {
   s.room.flush ??= DEFAULT.room.flush;
   s.room.near ??= DEFAULT.room.near;
   if (s.room.H === 96) s.room.H = 111; // first version guessed the ceiling; it measures 111"
@@ -188,33 +187,33 @@ function normalize(s) {
   }
   return s;
 }
-function load() {
+export function load() {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) return normalize(JSON.parse(raw));
   } catch (e) { console.warn("Could not read saved layout:", e); }
   return structuredClone(DEFAULT);
 }
-function save() {
+export function save() {
   try { localStorage.setItem(KEY, JSON.stringify(state)); }
   catch (e) { console.warn("Could not save layout:", e); storageOk = false; }
 }
-const $ = s => document.querySelector(s);
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const n = v => +(+v).toFixed(1);
-const ftin = v => { const f = Math.floor(v / 12), i = n(v - f * 12); return f + "′" + (i ? " " + i + "″" : ""); };
-const sel = () => state.items.find(i => i.id === selId) || null;
-const uid = () => "i" + Date.now().toString(36) + Math.floor(Math.random() * 1e4);
+export const $ = s => document.querySelector(s);
+export const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+export const n = v => +(+v).toFixed(1);
+export const ftin = v => { const f = Math.floor(v / 12), i = n(v - f * 12); return f + "′" + (i ? " " + i + "″" : ""); };
+export const sel = () => state.items.find(i => i.id === selId) || null;
+export const uid = () => "i" + Date.now().toString(36) + Math.floor(Math.random() * 1e4);
 
 /* ---------- geometry ---------- */
-const bumpRect = () => { const r = state.room; return { x: r.W - r.bx, y: 0, w: r.bx, d: r.by }; };
+export const bumpRect = () => { const r = state.room; return { x: r.W - r.bx, y: 0, w: r.bx, d: r.by }; };
 // Round and soft pieces, and rugs, can sit at any angle; hard furniture stays square to the walls.
 // A turned piece keeps its own width and depth, and the rules use the wall-aligned box that holds
 // it, which for a round piece is barely larger.
-const TURNABLE = new Set(["beanbag", "plant", "lamp", "rug"]);
-const canTurn = it => TURNABLE.has(kindOf(it));
-const turnOf = it => canTurn(it) ? ((it.turn || 0) % 360 + 360) % 360 : 0;
-function footprint(it) {
+export const TURNABLE = new Set(["beanbag", "plant", "lamp", "rug"]);
+export const canTurn = it => TURNABLE.has(kindOf(it));
+export const turnOf = it => canTurn(it) ? ((it.turn || 0) % 360 + 360) % 360 : 0;
+export function footprint(it) {
   const t = it.turn ? turnOf(it) * Math.PI / 180 : 0;
   if (!t) return it;
   const c = Math.abs(Math.cos(t)), s = Math.abs(Math.sin(t));
@@ -223,11 +222,11 @@ function footprint(it) {
     : [2 * Math.hypot(it.w / 2 * c, it.d / 2 * s), 2 * Math.hypot(it.w / 2 * s, it.d / 2 * c)];
   return { x: it.x + (it.w - w) / 2, y: it.y + (it.d - d) / 2, w, d };
 }
-const overlap = (a, b) => { a = footprint(a); b = footprint(b); return a.x < b.x + b.w - 0.01 && b.x < a.x + a.w - 0.01 && a.y < b.y + b.d - 0.01 && b.y < a.y + a.d - 0.01; };
-const topOf = it => it.z + Math.max(it.h, it.headH || 0);
-function outside(it) { const r = state.room, f = footprint(it); return f.x < 0 || f.y < 0 || f.x + f.w > r.W || f.y + f.d > r.L; }
+export const overlap = (a, b) => { a = footprint(a); b = footprint(b); return a.x < b.x + b.w - 0.01 && b.x < a.x + a.w - 0.01 && a.y < b.y + b.d - 0.01 && b.y < a.y + a.d - 0.01; };
+export const topOf = it => it.z + Math.max(it.h, it.headH || 0);
+export function outside(it) { const r = state.room, f = footprint(it); return f.x < 0 || f.y < 0 || f.x + f.w > r.W || f.y + f.d > r.L; }
 // Everything this item is not allowed to overlap: the in-push, and other solid pieces at the same height.
-function blockers(it) {
+export function blockers(it) {
   const out = [];
   const b = bumpRect();
   if (b.w > 0 && b.d > 0 && overlap(it, b)) out.push(b);
@@ -237,7 +236,7 @@ function blockers(it) {
   return out;
 }
 // Slide along one axis toward a target, stopping flush against whatever is in the way.
-function slide(it, axis, target) {
+export function slide(it, axis, target) {
   const old = it[axis], size = axis === "x" ? "w" : "d";
   if (target === old) return;
   it[axis] = target;
@@ -249,13 +248,13 @@ function slide(it, axis, target) {
   it[axis] = stop;
   if ((target > old ? stop < old : stop > old) || blockers(it).length) it[axis] = old;
 }
-function moveTo(it, x, y) {
+export function moveTo(it, x, y) {
   const r = state.room, f = footprint(it), ox = f.x - it.x, oy = f.y - it.y;
   slide(it, "x", Math.min(Math.max(x, -ox), Math.max(r.W - f.w - ox, -ox)));
   slide(it, "y", Math.min(Math.max(y, -oy), Math.max(r.L - f.d - oy, -oy)));
 }
 // Put a new piece in the first open spot, scanning from where it was asked to go.
-function placeFree(it) {
+export function placeFree(it) {
   if (!blockers(it).length) return;
   const r = state.room, x0 = it.x, y0 = it.y, f = footprint(it), ox = f.x - it.x, oy = f.y - it.y;
   for (let y = 0; y <= r.L - f.d; y += 3) for (let x = 0; x <= r.W - f.w; x += 3) {
@@ -264,14 +263,14 @@ function placeFree(it) {
   }
   it.x = x0; it.y = y0;
 }
-function clearances(item) {
+export function clearances(item) {
   const r = state.room, it = footprint(item);
   const northWall = it.x + it.w > r.W - r.bx ? r.by : 0;
   const eastWall = it.y < r.by ? r.W - r.bx : r.W;
   return { N: it.y - northWall, S: r.L - (it.y + it.d), W: it.x, E: eastWall - (it.x + it.w), northWall, eastWall };
 }
 // The boxes that make up a piece: its body, plus a headboard strip if it has one.
-function parts(it) {
+export function parts(it) {
   const f = footprint(it), out = [{ it, x: f.x, y: f.y, w: f.w, d: f.d, z: it.z, h: it.h, head: false }];
   if (it.headH > 0) {
     const t = Math.min(it.headT, it.headSide === "N" || it.headSide === "S" ? it.d : it.w);
@@ -285,12 +284,12 @@ function parts(it) {
   return out;
 }
 // How far below the bed's top the 3D throw hangs: down each long side, and over the foot end.
-const THROW_DROP = { side: 16, foot: 5 };
+export const THROW_DROP = { side: 16, foot: 5 };
 // Clear inches beside the foot of a bed for the throw to hang into: on the model's left and right
 // (seen from the foot) along the 30 in nearest the foot, and past the foot end. Walls, the in-push
 // and solid pieces count; a piece lower than the throw's hem on that side does not. `shelf` is the
 // top of the tallest such low piece within a foot of the foot end, which the throw lies on.
-function throwRoom(bed) {
+export function throwRoom(bed) {
   const r = state.room, foot = frontDir(bed), right = { S: "E", N: "W", E: "N", W: "S" }[foot], top = bed.z + bed.h;
   const band = { ...bed };
   if (foot === "N") band.d = Math.min(30, bed.d);
@@ -316,7 +315,7 @@ function throwRoom(bed) {
   return { ...sides, shelf };
 }
 // Wall segment an opening sits on, plus the unit normal pointing into the room.
-function opSeg(o) {
+export function opSeg(o) {
   const { W, L, bx, by } = state.room, mid = o.off + o.w / 2;
   if (o.wall === "N" || o.wall === "S") {
     const y = o.wall === "S" ? L : (mid > W - bx ? by : 0);
@@ -326,14 +325,14 @@ function opSeg(o) {
   return { x1: x, y1: o.off, x2: x, y2: o.off + o.w, nx: o.wall === "W" ? 1 : -1, ny: 0 };
 }
 // Hinge point, closed-leaf tip and fully open (90 degree) tip of a swinging door.
-function swingGeom(o) {
+export function swingGeom(o) {
   if (!o.hinge || o.hinge === "none") return null;
   const s = opSeg(o), dir = o.swing === "out" ? -1 : 1;
   const [hx, hy, fx, fy] = o.hinge === "start" ? [s.x1, s.y1, s.x2, s.y2] : [s.x2, s.y2, s.x1, s.y1];
   return { hx, hy, fx, fy, ox: hx + s.nx * dir * o.w, oy: hy + s.ny * dir * o.w, r: o.w, inward: dir === 1 };
 }
 // True when a piece overlaps the quarter circle a hinged door sweeps through.
-function inQuarter(item, g) {
+export function inQuarter(item, g) {
   const it = footprint(item), qx0 = Math.min(g.hx, g.fx, g.ox), qx1 = Math.max(g.hx, g.fx, g.ox);
   const qy0 = Math.min(g.hy, g.fy, g.oy), qy1 = Math.max(g.hy, g.fy, g.oy);
   const x0 = Math.max(it.x, qx0), x1 = Math.min(it.x + it.w, qx1);
@@ -343,7 +342,7 @@ function inQuarter(item, g) {
   return Math.hypot(px - g.hx, py - g.hy) < g.r - 0.01;
 }
 // True when an item sits where a room door swings.
-function inSwing(it) {
+export function inSwing(it) {
   return it.solid && state.openings.some(o => {
     const g = swingGeom(o);
     return g && g.inward && it.z < o.sill + o.h && inQuarter(it, g);
@@ -351,7 +350,7 @@ function inSwing(it) {
 }
 // A wardrobe has a hinged door for about every 20 in of front, in pairs hinged on their outer
 // edges; each sweeps a quarter circle as wide as the door. Same shape as swingGeom's result.
-function wardrobeSwings(w) {
+export function wardrobeSwings(w) {
   if (kindOf(w) !== "wardrobe" || /sliding|nordkisa/i.test(w.name)) return [];
   const face = frontDir(w), across = face === "N" || face === "S" ? w.w : w.d;
   const doors = Math.max(1, Math.round(across / 20)), dw = across / doors;
@@ -367,15 +366,15 @@ function wardrobeSwings(w) {
   });
 }
 // True when an item stands where another piece's wardrobe doors open.
-function inWardrobeSwing(it) {
+export function inWardrobeSwing(it) {
   return it.solid && state.items.some(w => w !== it && it.z < w.z + w.h && wardrobeSwings(w).some(g => inQuarter(it, g)));
 }
-const isBad = it => outside(it) || blockers(it).length > 0 || inSwing(it) || inWardrobeSwing(it);
+export const isBad = it => outside(it) || blockers(it).length > 0 || inSwing(it) || inWardrobeSwing(it);
 
 /* ---------- light: an estimate of how bright each spot is with only the lamps on ---------- */
 // Lumens per light and the share its shade sends downward. Every lamp with a socket takes Femi's
 // Tapo L535E smart bulb (1100 lm, E26, 2500-6500K); the PELARBOJ has its own built-in LED.
-function lightSpec(it) {
+export function lightSpec(it) {
   const nm = it.name.toLowerCase();
   if (it.lm > 0) return { lm: it.lm, down: it.down ?? 0.5 };
   if (/pelarboj/.test(nm)) return { lm: 25, down: 0.5 };
@@ -383,25 +382,25 @@ function lightSpec(it) {
   if (it.z === 0 && it.h >= 40) return { lm: 1100, down: 0.45 };
   return { lm: 1100, down: 0.5 };
 }
-const LIGHT_STEP = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
+export const LIGHT_STEP = { N: [0, -1], S: [0, 1], E: [1, 0], W: [-1, 0] };
 // Where each bulb sits: inside the shade, or just off the wall for a sconce.
-function lightSources(items) {
+export function lightSources(items) {
   return items.filter(it => kindOf(it) === "lamp" || kindOf(it) === "sconce").map(it => {
     const sconce = kindOf(it) === "sconce", [dx, dy] = sconce ? LIGHT_STEP[frontDir(it)] : [0, 0];
     return { it, x: it.x + it.w / 2 + dx * 4, y: it.y + it.d / 2 + dy * 4,
       z: sconce ? it.z + it.h * 0.7 : it.z + it.h - Math.min(it.h * 0.3, 10) / 2, ...lightSpec(it) };
   });
 }
-const LUM_EFF = 0.85, REFLECT = 0.5, M_PER_IN = 0.0254;
+export const LUM_EFF = 0.85, REFLECT = 0.5, M_PER_IN = 0.0254;
 // Light straight from one bulb onto a face-up spot, in lux; nothing gets through a solid box.
-function directLux(src, px, py, pz, boxes) {
+export function directLux(src, px, py, pz, boxes) {
   const dz = src.z - pz;
   if (dz <= 0) return 0;
   const dx = px - src.x, dy = py - src.y, d2 = (dx * dx + dy * dy + dz * dz) * M_PER_IN * M_PER_IN;
   for (const b of boxes) if (segHitsBox(src.x, src.y, src.z, px, py, pz, b)) return 0;
   return LUM_EFF * src.lm * src.down / (2 * Math.PI) * (dz * M_PER_IN / Math.sqrt(d2)) / d2;
 }
-function segHitsBox(x0, y0, z0, x1, y1, z1, b) {
+export function segHitsBox(x0, y0, z0, x1, y1, z1, b) {
   let lo = 0.001, hi = 0.999;
   for (const [a, e, mn, mx] of [[x0, x1 - x0, b.x, b.x + b.w], [y0, y1 - y0, b.y, b.y + b.d], [z0, z1 - z0, b.z, b.z + b.h]]) {
     if (Math.abs(e) < 1e-9) { if (a <= mn || a >= mx) return false; continue; }
@@ -413,36 +412,36 @@ function segHitsBox(x0, y0, z0, x1, y1, z1, b) {
   return true;
 }
 // Light bounced off walls, ceiling and floor, spread evenly: the room as an integrating sphere.
-function bounceLux(sources) {
+export function bounceLux(sources) {
   const { W, L, H } = state.room, area = (2 * W * L + 2 * (W + L) * H) * M_PER_IN * M_PER_IN;
   return LUM_EFF * sources.reduce((s, l) => s + l.lm, 0) * REFLECT / (area * (1 - REFLECT));
 }
-function lightBoxes(items) {
+export function lightBoxes(items) {
   const b = bumpRect(), out = b.w > 0 && b.d > 0 ? [{ ...b, z: 0, h: state.room.H }] : [];
   for (const it of items) if (it.solid && kindOf(it) !== "lamp" && kindOf(it) !== "sconce") out.push(...parts(it));
   return out;
 }
 // Lamps-only lux, dark navy at 10 lux or less to pale yellow at 1000.
-const LUX_STOPS = ["#1f2a44", "#6b4f7a", "#d9825b", "#ffd36b", "#fff6d6"];
-function luxColor(v) {
+export const LUX_STOPS = ["#1f2a44", "#6b4f7a", "#d9825b", "#ffd36b", "#fff6d6"];
+export function luxColor(v) {
   const t = Math.min(Math.max(Math.log10(Math.max(v, 1) / 10) / 2, 0), 1) * (LUX_STOPS.length - 1), i = Math.min(Math.floor(t), LUX_STOPS.length - 2), f = t - i;
   const mix = (a, b) => Math.round(parseInt(a, 16) * (1 - f) + parseInt(b, 16) * f).toString(16).padStart(2, "0");
   const a = LUX_STOPS[i], b = LUX_STOPS[i + 1];
   return "#" + [1, 3, 5].map(k => mix(a.slice(k, k + 2), b.slice(k, k + 2))).join("");
 }
 // RGB of a white bulb at a colour temperature, in kelvin (Tanner Helland's fit to blackbody colours).
-function kelvinRGB(k) {
+export function kelvinRGB(k) {
   const t = k / 100, c = v => Math.round(Math.min(Math.max(v, 0), 255));
   const r = t <= 66 ? 255 : 329.698727446 * Math.pow(t - 60, -0.1332047592);
   const g = t <= 66 ? 99.4708025861 * Math.log(t) - 161.1195681661 : 288.1221695283 * Math.pow(t - 60, -0.0755148492);
   const b = t >= 66 ? 255 : t <= 19 ? 0 : 138.5177312231 * Math.log(t - 10) - 305.0447927307;
   return [c(r), c(g), c(b)];
 }
-const READ_LUX = 300, ROOM_LUX = 50;
+export const READ_LUX = 300, ROOM_LUX = 50;
 // Lux over a face-up plane (default 30 in, about where a book or a folded shirt is), the bed's
 // reading spots, and the room's average and darkest tenth. Spots under furniture taller than the
 // plane, or in the in-push, are left blank.
-function lightReport(items, pz = 30, step = 3) {
+export function lightReport(items, pz = 30, step = 3) {
   const { W, L } = state.room, src = lightSources(items), boxes = lightBoxes(items), bounce = bounceLux(src);
   const at = (x, y, z) => bounce + src.reduce((s, l) => s + directLux(l, x, y, z, boxes), 0);
   const cols = Math.floor(W / step), rows = Math.floor(L / step), vals = [];
@@ -469,20 +468,20 @@ function lightReport(items, pz = 30, step = 3) {
     avg: open.reduce((s, v) => s + v, 0) / Math.max(open.length, 1), p10: open[Math.floor(open.length * 0.1)] ?? 0 };
 }
 // Position along a wall as seen from inside the room, left to right.
-function alongWall(wall, start, size) {
+export function alongWall(wall, start, size) {
   const r = state.room;
   if (wall === "N" || wall === "E") return start;
   return (wall === "S" ? r.W : r.L) - start - size;
 }
 // Gap between a box and the wall being looked at (the in-push counts as wall).
-function wallGap(wall, p) {
+export function wallGap(wall, p) {
   const c = clearances(p);
   return Math.max(c[wall], 0);
 }
-function tier(gap) { return gap <= state.room.flush ? "flush" : gap <= state.room.near ? "near" : "far"; }
+export function tier(gap) { return gap <= state.room.flush ? "flush" : gap <= state.room.near ? "near" : "far"; }
 
 // Pieces saved before "kind" existed are recognised by name.
-function kindOf(it) {
+export function kindOf(it) {
   if (it.kind) return it.kind;
   const nm = it.name.toLowerCase();
   const table = [["board", /snowboard(?! boot)/], ["boots", /boot/], ["ladder", /ladder/], ["beanbag", /bean ?bag/], ["nightstand", /night|bedside/], ["bed", /\bbed\b/], ["ottoman", /ottoman|storage bench|upholstered/], ["bench", /bench/], ["shoe", /shoe/], ["wardrobe", /wardrobe|armoire|pax/],
@@ -494,14 +493,14 @@ function kindOf(it) {
 }
 
 /* ---------- sidebar ---------- */
-function drawList() {
+export function drawList() {
   $("#list").innerHTML = state.items.map(it =>
     `<li data-id="${it.id}" class="${it.id === selId ? "sel" : ""}"><span class="sw" style="background:${esc(it.color)}"></span>${esc(it.name)}<small>${n(it.w)}×${n(it.d)}×${n(it.h)}</small></li>`).join("");
 }
-function num(label, key, v, attrs = "") {
+export function num(label, key, v, attrs = "") {
   return `<label>${label}<input type="number"${/step=/.test(attrs) ? "" : ' step="0.5"'} data-k="${key}" value="${n(v)}" ${attrs}></label>`;
 }
-function buildSelForm() {
+export function buildSelForm() {
   const it = sel(), el = $("#selCard");
   if (!it) { el.innerHTML = `<h2>Selected</h2><p class="hint" style="margin:0">Click a piece of furniture to edit it, or add one below.</p>`; return; }
   el.innerHTML = `<h2>Selected</h2>
@@ -519,7 +518,7 @@ function buildSelForm() {
     <div class="btns"><button data-act="rot">Rotate 90°</button><button data-act="dup">Duplicate</button><button data-act="del">Delete</button></div>
     <p class="hint">Headboard height 0 means no headboard. Its thickness is part of the depth.</p>`;
 }
-function buildRoomForm() {
+export function buildRoomForm() {
   const r = state.room;
   let h = `<div class="row">${num("Width (E–W)", "room.W", r.W)}${num("Length (N–S)", "room.L", r.L)}${num("Ceiling", "room.H", r.H)}</div>
     <div class="row two">${num("In-push width (E–W)", "room.bx", r.bx)}${num("In-push length (N–S)", "room.by", r.by)}</div>
@@ -536,10 +535,10 @@ function buildRoomForm() {
   $("#roomForm").innerHTML = h;
 }
 
-const currentPlan = () => [...BUILTIN, ...plans].find(p => p.id === state.planId) || null;
-const isSaved = p => plans.includes(p);
-function isDirty() { const p = currentPlan(); return JSON.stringify(p ? p.items : DEFAULT.items) !== JSON.stringify(state.items); }
-function drawPlans() {
+export const currentPlan = () => [...BUILTIN, ...plans].find(p => p.id === state.planId) || null;
+export const isSaved = p => plans.includes(p);
+export function isDirty() { const p = currentPlan(); return JSON.stringify(p ? p.items : DEFAULT.items) !== JSON.stringify(state.items); }
+export function drawPlans() {
   const cur = currentPlan(), dirty = isDirty();
   const row = p => {
     const armedLoad = armedKey === "load:" + p.id, armedDel = armedKey === "del:" + p.id;
@@ -556,28 +555,30 @@ function drawPlans() {
   $("#planHint").textContent = storageOk ? "Click a plan to open it." : "This browser is blocking storage, so plans will not survive closing the tab. Use Export JSON to keep them.";
 }
 // Destructive clicks need a second click within four seconds.
-function confirmTwice(key, fn) {
+export function confirmTwice(key, fn) {
   clearTimeout(armTimer);
   if (armedKey === key) { armedKey = null; fn(); return; }
   armedKey = key;
   armTimer = setTimeout(() => { armedKey = null; drawPlans(); }, 4000);
   drawPlans();
 }
-function openPlan(p) {
+export function openPlan(p) {
   state.items = normalize({ room: { ...state.room }, openings: [], items: structuredClone(p.items) }).items;
   state.planId = p.id; selId = null; buildSelForm(); draw();
 }
 // Each page sets these: onDraw repaints its view, nudge turns an arrow key into a move across the floor,
 // onPrint gets the page ready before the print dialog opens.
-let onDraw = () => {};
-let onPrint = async () => {};
-let nudge = (dx, dy) => [dx, dy];
-function refresh() { onDraw(); drawList(); drawPlans(); }
-function draw() { refresh(); save(); }
-function select(id) { selId = id; buildSelForm(); draw(); }
+export const hooks = {
+  onDraw: () => {},
+  onPrint: async () => {},
+  nudge: (dx, dy) => [dx, dy]
+};
+export function refresh() { hooks.onDraw(); drawList(); drawPlans(); }
+export function draw() { refresh(); save(); }
+export function select(id) { selId = id; buildSelForm(); draw(); }
 
 /* ---------- sidebar wiring ---------- */
-const SIDEBAR = `<div class="card" id="selCard"></div>
+export const SIDEBAR = `<div class="card" id="selCard"></div>
 <details class="card" data-section="furniture" open>
   <summary>Furniture</summary>
   <ul id="list"></ul>
@@ -614,18 +615,18 @@ const SIDEBAR = `<div class="card" id="selCard"></div>
   <p class="hint" id="keysHint" style="margin:0">Arrow keys nudge 1″ (Shift = 6″), R rotates, Shift+R turns 15° (bean bags, plants, lamps and rugs), Delete removes, Esc deselects. Solid pieces stop at walls and at each other. A red dashed outline means a piece blocks a door swing, a room door's or a wardrobe's, or overlaps something.</p>
 </details>`;
 // Which sidebar sections this browser has opened or closed, by data-section name.
-const SECTIONS_KEY = "bedroom-planner-sections-v1";
-const OPPOSITE = { N: "S", E: "W", S: "N", W: "E" };
+export const SECTIONS_KEY = "bedroom-planner-sections-v1";
+export const OPPOSITE = { N: "S", E: "W", S: "N", W: "E" };
 // Which way a piece's front points. Beds face away from the headboard; everything else faces
 // away from the wall it is nearest, measured across its short side, unless a facing was chosen.
-function frontDir(it) {
+export function frontDir(it) {
   if (it.headH > 0) return OPPOSITE[it.headSide];
   if (it.face && it.face !== "auto") return it.face;
   const c = clearances(it), ratio = it.w / it.d;
   const sides = ratio > 1.15 ? ["S", "N"] : ratio < 0.87 ? ["E", "W"] : ["S", "E", "N", "W"];
   return sides.reduce((a, b) => (c[b] > c[a] + 0.01 ? b : a));
 }
-function rotateItem(it) {
+export function rotateItem(it) {
   const facing = it.headH > 0 ? null : frontDir(it), cx = it.x + it.w / 2, cy = it.y + it.d / 2, r = state.room;
   [it.w, it.d] = [it.d, it.w];
   it.x = Math.min(Math.max(Math.round(cx - it.w / 2), 0), Math.max(r.W - it.w, 0));
@@ -634,7 +635,7 @@ function rotateItem(it) {
   if (facing) it.face = CLOCKWISE[facing];
   placeFree(it);
 }
-function act(a) {
+export function act(a) {
   const it = sel();
   if (!it) return;
   if (a === "rot") rotateItem(it);
@@ -642,7 +643,7 @@ function act(a) {
   if (a === "del") { state.items = state.items.filter(i => i !== it); selId = null; }
   buildSelForm(); draw();
 }
-function initPlanner() {
+export function initPlanner() {
   $("#side").innerHTML = SIDEBAR;
   let sections = {};
   try { sections = JSON.parse(localStorage.getItem(SECTIONS_KEY)) || {}; } catch { /* no storage: every section starts as shipped */ }
@@ -688,7 +689,7 @@ function initPlanner() {
     if (!it) return;
     const step = e.shiftKey ? 6 : 1;
     const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
-    if (moves[e.key]) { const [dx, dy] = nudge(...moves[e.key]); moveTo(it, it.x + dx, it.y + dy); e.preventDefault(); buildSelForm(); draw(); }
+    if (moves[e.key]) { const [dx, dy] = hooks.nudge(...moves[e.key]); moveTo(it, it.x + dx, it.y + dy); e.preventDefault(); buildSelForm(); draw(); }
     else if (e.key === "R" && canTurn(it)) { it.turn = (turnOf(it) + 15) % 360; buildSelForm(); draw(); }
     else if (e.key === "r" || e.key === "R") act("rot");
     else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); act("del"); }
@@ -754,7 +755,7 @@ function initPlanner() {
     if (!p || !isSaved(p)) return;
     p.items = structuredClone(state.items); savePlans(); draw();
   });
-  $("#print").addEventListener("click", async () => { await onPrint(); window.print(); });
+  $("#print").addEventListener("click", async () => { await hooks.onPrint(); window.print(); });
   // Two clicks instead of a browser confirm box, which some browsers suppress on local files.
   const resetBtn = $("#reset");
   let resetTimer = null;
