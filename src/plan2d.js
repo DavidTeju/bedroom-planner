@@ -1,4 +1,4 @@
-import { $, alongWall, buildSelForm, canTurn, clearances, draw, ENDS, esc, footprint, ftin, giltFrame, hooks, initPlanner, isBad, kindOf, lightReport, luxColor, moveTo, n, opSeg, parts, photo, photoPanes, PRINTS, READ_LUX, ROOM_LUX, sel, select, selId, state, swingGeom, tier, turnOf, wallGap, WALLS, wardrobeSwings } from "./core.js";
+import { $, alongWall, buildSelForm, canTurn, clearances, draw, ENDS, esc, footprint, ftin, giltFrame, hooks, initPlanner, isBad, kindOf, lightReport, luxColor, moveTo, n, opSeg, parts, photoPanes, PRINTS, READ_LUX, ROOM_LUX, sel, select, selId, state, swingGeom, tier, turnOf, wallGap, WALLS, wardrobeSwings } from "./core.js";
 const VIEWS = ["plan", "N", "E", "S", "W"];
 let mainView = "plan", showLight = false;
 let lastLight = null;

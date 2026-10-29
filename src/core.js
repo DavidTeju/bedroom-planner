@@ -1,20 +1,9 @@
-// Shared by plan.html (2D) and index.html (3D): the measured room, the ready-made
-// layouts, saved state, the collision rules and the sidebar. Each page supplies only its own view.
+// Shared by plan.html (2D) and index.html (3D): the room from its file, the ready-made layouts,
+// saved state, the collision rules and the sidebar. Each page supplies only its own view.
+import ROOM from "./room.js";
 export const KEY = "bedroom-planner-v1";
 export const PLANS_KEY = "bedroom-planner-plans-v1";
-export const DEFAULT = {
-  planId: null,
-  room: { W: 129, L: 164, bx: 31, by: 48, H: 111, flush: 3, near: 24 },
-  openings: [
-    { id: "door", name: "Door", kind: "door", wall: "N", off: 59, w: 39, sill: 0, h: 80, hinge: "end", swing: "in" },
-    { id: "closet", name: "Closet door", kind: "closet", wall: "W", off: 82, w: 35, sill: 0, h: 80, hinge: "end", swing: "in" },
-    { id: "window", name: "Window", kind: "window", wall: "W", off: 130, w: 34, sill: 39, h: 48, hinge: "none", swing: "in" }
-  ],
-  items: [
-    { id: "bed", name: "Bed", x: 39, y: 78, w: 66, d: 86, h: 24, z: 0, color: "#a9ae95", kind: "bed", solid: true, headH: 46, headT: 3, headSide: "S" }
-  ]
-};
-// Femi's own bench, measured 46 x 16; its 18 in height is read off photos.
+// An upholstered storage bench, 46 x 16 and 18 in high.
 export const BENCH = "Tufted storage bench";
 // name, width, depth, height, off floor, colour, solid, kind
 export const PRESETS = [
@@ -33,39 +22,14 @@ export const PRESETS = [
 export const KINDS = { bed: "Bed", bench: "Bench", ottoman: "Upholstered storage bench", dresser: "Dresser / drawers", wardrobe: "Wardrobe", rack: "Clothes rack", shoe: "Shoe storage",
   nightstand: "Nightstand", shelf: "Shelving", ladder: "Ladder shelf", beanbag: "Bean bag", board: "Snowboard on a wall rack", boots: "Snowboard boots", chair: "Chair", rug: "Rug", mirror: "Mirror",
   art: "Framed art", textile: "Wall hanging", pegs: "Peg rail with gear", lamp: "Lamp", sconce: "Wall sconce", plant: "Plant", other: "Plain box" };
-// Femi's palette, Clay and indigo. The walls are rented cream plaster and can't be painted, so the
-// colour comes from what he owns (sage wardrobe and comforter, wood, cane, black-brown) plus a
-// terracotta throw and bean bag, an indigo pillow echoing his Adire, jute rugs and olive-painted chests.
-// The wardrobe is painted Behr Laurel Garland; chests go one step darker on the same Behr strip.
-export const THEME = { name: "Clay and indigo", walls: "#eadfcc", floor: "#9a5530", sheets: "#ddd3c1", throw: "#b5653f", accent: "#2f4a7a",
-  wardrobePaint: "Behr Laurel Garland N390-6", chestPaint: "Behr Cypress Vine N390-7" };
+// The room's palette: wall and floor colours and the bed's textiles, from the room file.
+export const THEME = ROOM.theme;
 // Starting points that ship with the page.
 export const KIND_COLOR = { bed: "#a9ae95", bench: "#a9825a", ottoman: "#4a4d55", dresser: "#565d49", wardrobe: "#68705c", rack: "#9aa3ad", shoe: "#2a2421",
   nightstand: "#8b4a24", shelf: "#9c7b55", ladder: "#b08a62", beanbag: "#b5653f", board: "#2f5d7c", boots: "#2b2d33", chair: "#7fae8f", rug: "#c8b48a", mirror: "#9fc5d8", lamp: "#e3c66b", sconce: "#e3c66b", plant: "#7fae8f",
   art: "#efe4cc", textile: "#3f5f9e", pegs: "#c9b592", other: "#bdbdbd" };
-// Femi's own photographs, picked for the walls. Each file is a 1600 px copy with no location or camera data.
-export const PRINTS = {
-  "dunes-sundown": { title: "Great Sand Dunes at sundown", place: "Great Sand Dunes National Park, Colorado", taken: "2025-06", w: 1200, h: 1600 },
-  "tents-under-stars": { title: "Tents under the stars", place: "Carson National Forest, New Mexico", taken: "2025-05", w: 1200, h: 1600 },
-  "shi-shi-sea-stack": { title: "Sea stack at sunset", place: "Shi Shi Beach, Olympic National Park", taken: "2026-02", w: 1200, h: 1600 },
-  "shi-shi-dusk": { title: "Point of Arches at dusk", place: "Shi Shi Beach, Olympic National Park", taken: "2026-02", w: 1067, h: 1600 },
-  "point-of-arches": { title: "Point of Arches at low tide", place: "Shi Shi Beach, Olympic National Park", taken: "2026-02", w: 1600, h: 1067 },
-  "lake-serene": { title: "Lake Serene", place: "Mt. Baker-Snoqualmie National Forest, Washington", taken: "2026-05", w: 1067, h: 1600 },
-  "zion-narrows": { title: "The Narrows", place: "Zion National Park, Utah", taken: "2025-07", w: 1200, h: 1600 },
-  "zion-canyon": { title: "Zion Canyon from above", place: "Zion National Park, Utah", taken: "2025-07", w: 1200, h: 1600 },
-  "horseshoe-bend": { title: "Horseshoe Bend", place: "Page, Arizona", taken: "2025-06", w: 1200, h: 1600 },
-  "capitol-reef-arch": { title: "Capitol Reef arch", place: "Capitol Reef National Park, Utah", taken: "2025-06", w: 1600, h: 1200 },
-  "frozen-lake": { title: "Skating a frozen lake", place: "Snoqualmie Pass, Washington", taken: "2026-01", w: 1200, h: 1600 },
-  "sierra-sundown": { title: "Sundown over the Sierra", place: "Giant Sequoia National Monument, California", taken: "2025-07", w: 1600, h: 1200 },
-  "palos-verdes": { title: "Palos Verdes coast", place: "Bluff Cove, Palos Verdes, California", taken: "2025-03", w: 1200, h: 1600 },
-  "vernal-fall-rainbow": { title: "Vernal Fall with a rainbow", place: "Yosemite National Park, California", taken: "2024-07", w: 1200, h: 1600 },
-  "el-capitan": { title: "El Capitan and the valley", place: "Yosemite National Park, California", taken: "2024-07", w: 1200, h: 1600 },
-  "rainier-alpenglow": { title: "Rainier at alpenglow", place: "Mount Rainier National Park, Washington", taken: "2024-09", w: 1200, h: 1600 },
-  "dunes-sunset": { title: "Sunset over the dunes", place: "Great Sand Dunes National Park, Colorado", taken: "2025-06", w: 1600, h: 1200 },
-  "half-dome-edge": { title: "The edge of Half Dome", place: "Yosemite National Park, California", taken: "2025-07", w: 1200, h: 1600 },
-  "snowy-ridge": { title: "Snowy ridge in winter sun", place: "North Bend, Washington", taken: "2026-01", w: 1200, h: 1600 }
-};
-for (const [key, p] of Object.entries(PRINTS)) p.file = `prints/${key}.jpg`;
+// Photographs for the frames, described in the room file; each one's picture is public/prints/<key>.jpg.
+export const PRINTS = Object.fromEntries(Object.entries(ROOM.prints).map(([key, p]) => [key, { ...p, file: `prints/${key}.jpg` }]));
 // The panes of a frame pw by ph: one photo fills it; several sit in a grid of up to three across.
 // x is each pane's centre from the frame's middle, y its bottom edge up from the frame's bottom.
 export function photoPanes(photos, pw, ph) {
@@ -93,48 +57,17 @@ export function giltFrame(w, h) {
     opening: { inset: m, w: w - 2 * m, h: h - 2 * m }
   };
 }
-// [name, kind, x, y, width, depth, height, off floor, headboard side], optionally ending in extra fields such as { photos }
-export const pc = (row, i) => {
-  const extra = typeof row[row.length - 1] === "object" ? row[row.length - 1] : {};
-  const [name, kind, x, y, w, d, h, z = 0, headSide = ""] = typeof row[row.length - 1] === "object" ? row.slice(0, -1) : row;
-  return { id: kind + i, name, kind, x, y, w, d, h, z, color: KIND_COLOR[kind], solid: kind !== "rug", headH: headSide ? 46 : 0, headT: 3, headSide: headSide || "S", ...extra };
-};
-export const photo = (...photos) => ({ photos });
-export const layout = (id, name, note, why, rows) => ({ id, name, note, why, items: rows.map(pc) });
-export const BUILTIN = [
-  layout("b3", "Bed facing the window", "wake to light",
-    "Bed turned with its head on the east wall and its foot toward the window, so the middle of the room is one open floor. Your green VILHATTEN wardrobe fills the north-west corner facing south, with the black LACK shoe shelf beside it and clear of the door swing. Its doors open onto clear floor: the MALM tall chest starts on the west wall just past them. A ladder shelf leans on the in-push facing south, under the Capitol Reef print. Your wood nightstand stands at the head of the bed's open side. The bench sits across the foot of the bed. The snowboard hangs upright on the south wall at the window end of the bench, with its boots on a tray under it, so it sits in the dead end beside the floor lamp. No ceiling light: a floor lamp stands in the window corner, a plug-in swing-arm sconce over the bed's head corner, just above the headboard, is the reading light, and your BÖJA, Mika and PELARBOJ lamps sit on the chest, the nightstand and the top of the shoe shelf. Tightest walkway is 27 in, between the bench and the window wall; the lamp sits at its dead end.", [
-    ["Bed", "bed", 43, 98, 86, 66, 24, 0, "E"], [BENCH, "ottoman", 27, 117, 16, 46, 18],
-    ["VILHATTEN wardrobe, green", "wardrobe", 0, 0, 38.625, 22.5, 74.75], ["LACK shoe shelf, black-brown", "shoe", 38.625, 0, 11.75, 11, 74.75],
-    ["MALM 6-drawer tall chest, painted olive", "dresser", 0, 44, 18.875, 31.5, 48.375],
-    ["Ladder shelf", "ladder", 101, 48, 24, 16, 72], ["Your nightstand, rattan drawer", "nightstand", 112, 81, 17, 17, 22], ["Jute rug 5'3 x 7'7", "rug", 36, 48, 90.5, 63, 0.5],
-    ["Floor lamp", "lamp", 1, 151, 12, 12, 64], ["Snowboard wall rack", "board", 14, 156, 12, 8, 63, 16], ["Snowboard boots on a tray", "boots", 13, 149, 14, 15, 12], ["Plug-in swing-arm sconce", "sconce", 125, 99, 4, 6, 12, 46], ["Mika cactus lamp (yours)", "lamp", 116, 85, 8, 8, 15, 22],
-    ["BÖJA table lamp (yours)", "lamp", 5.375, 55.875, 8, 8, 16, 48.375], ["PELARBOJ glow lamp (yours)", "lamp", 42.25, 3, 4.5, 4.5, 4, 74.75],
-    ["Print: Point of Arches at low tide", "art", 128, 111, 1, 40, 27, 54, photo("point-of-arches")], ["Print: Sea stack at sunset", "art", 55, 163, 18, 1, 24, 50, photo("shi-shi-sea-stack")], ["Print: Great Sand Dunes at sundown", "art", 77, 163, 18, 1, 24, 50, photo("dunes-sundown")], ["Print: Tents under the stars", "art", 99, 163, 18, 1, 24, 50, photo("tents-under-stars")], ["Adire wall hanging", "textile", 128, 68.25, 1, 29.5, 40, 54], ["Framed topo map", "art", 0, 47.75, 1, 24, 24, 56], ["Print: Capitol Reef arch", "art", 100, 48, 24, 1, 18, 72, photo("capitol-reef-arch")]]),
-  layout("a1", "Corner bed, maximum storage", "most storage",
-    "Bed in the south-east corner. Your green VILHATTEN wardrobe in the north-west corner takes hanging clothes with the black LACK shoe shelf beside it, and a 63 in MALM dresser sits under the window and doubles as the nightstand. Bench stays at the foot. The snowboard hangs upright on the east wall in the corner by the in-push, its boots on a tray under it. No ceiling light: a floor lamp stands just north of the bed's foot corner, a plug-in swing-arm sconce on the south wall, just above the headboard's open corner, is the reading light, and your BÖJA and Mika lamps sit on the dresser with the PELARBOJ on top of the shoe shelf. Main walkway is 51 in; the tightest spot is 24 in in front of the wardrobe doors. The bed is reachable from one side only and the north-west corner is furniture-heavy.", [
-    ["Bed", "bed", 63, 78, 66, 86, 24, 0, "S"], [BENCH, "ottoman", 64, 62, 46, 16, 18],
-    ["VILHATTEN wardrobe, green", "wardrobe", 0, 0, 38.625, 22.5, 74.75], ["MALM 6-drawer dresser, painted olive", "dresser", 0, 145.125, 63, 18.875, 30.75],
-    ["LACK shoe shelf, black-brown", "shoe", 38.625, 0, 11.75, 11, 74.75], ["Hook rail", "other", 104, 48, 18.875, 3.5, 5.5, 62],
-    ["Jute runner 30 x 84", "rug", 28, 55, 30, 84, 0.5],
-    ["Floor lamp", "lamp", 117, 65, 12, 12, 64], ["Snowboard wall rack", "board", 121, 52, 8, 12, 63, 16], ["Snowboard boots on a tray", "boots", 115, 51, 14, 14, 12], ["Plug-in swing-arm sconce", "sconce", 63, 160, 6, 4, 12, 46], ["BÖJA table lamp (yours)", "lamp", 51.875, 150.875, 8, 8, 16, 30.75],
-    ["Mika cactus lamp (yours)", "lamp", 4, 150, 8, 8, 15, 30.75], ["PELARBOJ glow lamp (yours)", "lamp", 42.25, 3, 4.5, 4.5, 4, 74.75],
-    ["Print: Sundown over the Sierra", "art", 76, 163, 40, 1, 30, 54, photo("sierra-sundown")], ["Trip photo grid", "art", 8, 163, 48, 1, 40, 36, photo("zion-narrows", "zion-canyon", "horseshoe-bend", "lake-serene", "frozen-lake", "palos-verdes")], ["Adire wall hanging", "textile", 128, 90, 1, 30, 40, 48], ["Framed topo map", "art", 0, 53, 1, 24, 28, 44], ["Print: Point of Arches at dusk", "art", 37.5, 0, 14, 1, 21, 80, photo("shi-shi-dusk")]]),
-  layout("a3", "Centred bed, both sides open", "two-sided bed",
-    "Bed stays almost where it is, so you can get in from either side: 38 in on the west (22 in beside the low chest under the window), 25 in on the east. Your green VILHATTEN wardrobe in the north-west corner with the black LACK shoe shelf beside it, a narrow KULLEN 5-drawer chest south of the in-push, a low KULLEN 3-drawer chest under the window, a nightstand and a shelf over the headboard. The snowboard hangs upright on the west wall just north of the closet door, its boots on a tray under it. No ceiling light: a pair of plug-in swing-arm sconces sit just above the headboard's two corners, a floor lamp stands on the west wall between the closet door and the window, and your BÖJA, Mika and PELARBOJ lamps sit on the tall chest, the nightstand and the top of the shoe shelf. Bench keeps its place at the foot. Tightest walkway is 22 in.", [
-    ["Bed", "bed", 38, 78, 66, 86, 24, 0, "S"], [BENCH, "ottoman", 39, 62, 46, 16, 18],
-    ["VILHATTEN wardrobe, green", "wardrobe", 0, 0, 38.625, 22.5, 74.75], ["LACK shoe shelf, black-brown", "shoe", 38.625, 0, 11.75, 11, 74.75],
-    ["KULLEN 5-drawer chest, painted olive", "dresser", 113.25, 48, 15.75, 27.5, 44.125], ["KULLEN 3-drawer chest, painted olive", "dresser", 0, 136.5, 15.75, 27.5, 28.375], ["MALM 2-drawer nightstand", "nightstand", 110.125, 148.25, 18.875, 15.75, 21.625],
-    ["Wall shelf over bed", "other", 49, 153.75, 43.25, 10.25, 2, 60], ["Hook rail", "other", 0, 46.5, 3.5, 18.875, 5.5, 62],
-    ["Jute rug 60 x 96", "rug", 14, 48, 96, 60, 0.5], ["Snowboard wall rack", "board", 0, 66, 8, 12, 63, 16], ["Snowboard boots on a tray", "boots", 0, 65, 15, 14, 12],
-    ["Floor lamp", "lamp", 1, 119, 12, 12, 64], ["Plug-in swing-arm sconce", "sconce", 38, 160, 6, 4, 12, 46], ["Plug-in swing-arm sconce", "sconce", 98, 160, 6, 4, 12, 46],
-    ["BÖJA table lamp (yours)", "lamp", 116.875, 60.875, 8, 8, 16, 44.125], ["Mika cactus lamp (yours)", "lamp", 114, 152, 8, 8, 15, 21.625], ["PELARBOJ glow lamp (yours)", "lamp", 42.25, 3, 4.5, 4.5, 4, 74.75],
-    ["Print: Vernal Fall with a rainbow", "art", 52, 163, 18, 1, 24, 66, photo("vernal-fall-rainbow")], ["Print: Rainier at alpenglow", "art", 73, 163, 18, 1, 24, 66, photo("rainier-alpenglow")], ["Adire wall hanging", "textile", 128, 85, 1, 30, 45, 40], ["Framed topo map", "art", 0, 44, 1, 20, 28, 72], ["Print: Sunset over the dunes", "art", 102, 48, 24, 1, 18, 50, photo("dunes-sunset")], ["Print: Snowy ridge in winter sun", "art", 37.5, 0, 15, 1, 20, 80, photo("snowy-ridge")],
-    ["Print: El Capitan and the valley", "art", 128, 54, 1, 18, 24, 52, photo("el-capitan")], ["Print: The edge of Half Dome", "art", 128, 121, 1, 18, 24, 52, photo("half-dome-edge")]])
-];
+// A piece as the room file writes it, filled in from its kind: the kind's colour, solid unless it is
+// a rug, and a 46 in headboard on headSide when it names one. Anything else on it, such as photos, is kept.
+export function expandItem(spec, i) {
+  const { id = spec.kind + i, name, kind, x, y, w, d, h, z = 0, headSide = "", color = KIND_COLOR[kind], ...extra } = spec;
+  return { id, name, kind, x, y, w, d, h, z, color, solid: kind !== "rug", headH: headSide ? 46 : 0, headT: 3, headSide: headSide || "S", ...extra };
+}
+export const DEFAULT = { planId: null, room: ROOM.room, openings: ROOM.openings, items: ROOM.start.map(expandItem) };
+export const BUILTIN = ROOM.layouts.map(({ slug, items, ...p }) => ({ ...p, items: items.map(expandItem) }));
 // Shareable addresses. /window/ and the others are small pages with their own link preview
 // that send people on to /?layout=window, which opens that layout.
-export const LINKS = { window: "b3", corner: "a1", centred: "a3" };
+export const LINKS = Object.fromEntries(ROOM.layouts.filter(l => l.slug).map(l => [l.slug, l.id]));
 export const linkOf = p => { const slug = Object.keys(LINKS).find(k => LINKS[k] === p.id); return slug ? `/${slug}/` : null; };
 export function linkedPlan(search) {
   const slug = (/[?&]layout=([\w-]+)/.exec(search) || [])[1];
@@ -163,13 +96,10 @@ export function savePlans() {
 export function normalize(s) {
   s.room.flush ??= DEFAULT.room.flush;
   s.room.near ??= DEFAULT.room.near;
-  if (s.room.H === 96) s.room.H = 111; // first version guessed the ceiling; it measures 111"
   for (const o of s.openings) {
     const d = DEFAULT.openings.find(x => x.id === o.id);
     if (!o.hinge) o.hinge = d ? d.hinge : "none";
     if (!o.swing) o.swing = "in";
-    // The first version guessed the closet door at the north end; it is 13" from the window.
-    if (o.id === "closet" && o.off === 12) { o.off = 82; o.hinge = "end"; }
   }
   const head = s.items.find(i => i.id === "head"), bed = s.items.find(i => i.id === "bed");
   if (head && bed) {

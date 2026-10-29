@@ -4,7 +4,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
-import { $, buildSelForm, BUILTIN, clearances, currentPlan, draw, esc, frontDir, giltFrame, hooks, initPlanner, isBad, kelvinRGB, kindOf, layout, lightSources, load, moveTo, n, openPlan, OPPOSITE, opSeg, parts, photo, photoPanes, PRINTS, sel, select, selId, state, swingGeom, THEME, THROW_DROP, throwRoom, topOf, turnOf, wardrobeSwings } from "./core.js";
+import { $, buildSelForm, BUILTIN, clearances, currentPlan, draw, esc, frontDir, giltFrame, hooks, initPlanner, isBad, kelvinRGB, kindOf, lightSources, load, moveTo, n, openPlan, OPPOSITE, opSeg, parts, photoPanes, PRINTS, sel, select, selId, state, swingGeom, THEME, THROW_DROP, throwRoom, topOf, turnOf, wardrobeSwings } from "./core.js";
 import { drapePoint, pillowPoint } from "./cloth.js";
 import { kuwahara } from "./kuwahara.js";
 import { stepDoor } from "./doors.js";
