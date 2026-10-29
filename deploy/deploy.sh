@@ -25,7 +25,12 @@ gh run watch "$run" --exit-status --interval 10 >/dev/null
 
 # Copies the site out of the image and swaps the `current` symlink in one rename.
 ssh projects "sudo deploy-app bedroom-planner promote $sha"
-for page in / /plan.html /core.js /core.css; do
-	curl -fsS -o /dev/null "https://bedroom.davidteju.dev$page"
+site=https://bedroom.davidteju.dev
+for page in / /plan.html /window/; do
+	curl -fsS -o /dev/null "$site$page"
+done
+# Vite names each built script and stylesheet by its content, so fetch the ones the pages load.
+for asset in $(curl -fsS "$site/" "$site/plan.html" | grep -o '/assets/[^"]*' | sort -u); do
+	curl -fsS -o /dev/null "$site$asset"
 done
 echo "bedroom.davidteju.dev serves ${sha:0:12}"
