@@ -179,4 +179,4 @@ VPS's certbot cron.
 
 The code is under the [MIT License](LICENSE). The photographs in `public/prints/` and the preview
 pictures in `public/og/`, which show them, are Femi's and are not covered by it: all rights
-reserved. Use your own photos when you plan your own room.
+reserved, as [NOTICE](NOTICE) says. Use your own photos when you plan your own room.
