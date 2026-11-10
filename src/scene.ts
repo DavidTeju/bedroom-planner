@@ -4,7 +4,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { CSS2DRenderer, CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
-import { $, buildSelForm, BUILTIN, clearances, currentPlan, draw, esc, formField, frontDir, giltFrame, hooks, initPlanner, isBad, kelvinRGB, kindOf, lightSources, moveTo, n, openPlan, OPPOSITE, opSeg, parts, photoPanes, PRINTS, sel, select, selId, state, swingGeom, THEME, THROW_DROP, targetOf, throwRoom, topOf, turnOf, wardrobeSwings, type BandTone, type Part, type Swing } from "./core.ts";
+import { $, buildSelForm, BUILTIN, clearances, currentPlan, draw, esc, formField, frontDir, giltFrame, HINGE_SET, hooks, initPlanner, isBad, kelvinRGB, kindOf, lightSources, moveTo, n, openAngle, openPlan, OPPOSITE, opSeg, parts, photoPanes, PRINTS, sel, select, selId, state, swingGeom, THEME, THROW_DROP, targetOf, throwRoom, topOf, turnOf, wardrobeSwings, type BandTone, type Part, type Swing } from "./core.ts";
 import { drapePoint, pillowPoint, type DrapeBed, type Point } from "./cloth.ts";
 import { kuwahara } from "./kuwahara.ts";
 import { stepDoor, type DoorSwing } from "./doors.ts";
@@ -1015,11 +1015,13 @@ const MODELS: Record<Kind, (g: THREE.Group, x: ModelSpec) => void> = {
       for (const sx of [-1, 1]) { bxm(g, 0.7, 5, 0.7, sx * a * 0.35, -5, -dp / 2 + 0.35, DARK_METAL); bxm(g, 0.7, 0.7, dp * 0.7, sx * a * 0.35, -0.7, -dp * 0.15, DARK_METAL); }
       if (a >= 10) for (let i = 0; i < 3; i++) bxm(g, Math.min(8, a * 0.6), 1 + r() * 0.6, Math.min(5.5, dp - 1), -a * 0.2, h + i * 1.3, 0, M(pick(r, BOOKS), 0.8))!.rotation.y = (r() - 0.5) * 0.3;
     } else if (/hook/.test(name)) {
-      bxm(g, a, h, 0.8, 0, 0, -dp / 2 + 0.4, wood(c), 0.2);
-      const count = Math.max(2, Math.round(a / 5));
+      // A wooden rail carries steel hooks, one about every 3.5 in; a steel one ends its hooks in oak knobs.
+      const steel = /steel/.test(name);
+      bxm(g, a, h, 0.8, 0, 0, -dp / 2 + 0.4, steel ? M(c, 0.45, 0.6) : wood(c), 0.2);
+      const count = Math.max(2, Math.round(a / 3.5));
       for (let i = 0; i < count; i++) {
         const x = -a / 2 + a / count * (i + 0.5);
-        cyl(g, 0.3, 0.3, dp - 0.8, x, h * 0.45, 0.4, DARK_METAL, "z", 8); ball(g, 0.55, x, h * 0.45, dp / 2, DARK_METAL);
+        cyl(g, 0.3, 0.3, dp - 0.8, x, h * 0.45, 0.4, DARK_METAL, "z", 8); ball(g, steel ? 0.9 : 0.55, x, h * 0.45, dp / 2, steel ? wood("#c49a63") : DARK_METAL);
         if (i % 2 === 0) bxm(g, 6.5, 17, 2.2, x, h * 0.45 - 17.5, dp / 2 - 1, M(pick(r, CLOTHES), 1), 1.1);
       }
     } else bxm(g, a, Math.max(h, 0.3), dp, 0, 0, 0, M(c, 0.8), Math.min(0.8, h / 4));
@@ -1043,7 +1045,9 @@ const lampG = new THREE.Group();
 scene.add(roomG, itemsG, pickG, overlayG, lampG);
 const WALL_T = 4.5;
 interface WallSeg { wall: Wall; horiz: boolean; fixed: number; a0: number; a1: number; n: number; group: THREE.Group }
-interface DoorPivot { swing: DoorSwing; leaf: THREE.Group; shut: number; turn: number }
+// A door's leaf and how it turns: from shut, through turn radians when fully open, times reach,
+// the share of that a piece hung on it allows. It pivots at (px, pz), which hung pieces swing round.
+interface DoorPivot { id: string; swing: DoorSwing; leaf: THREE.Group; shut: number; turn: number; reach: number; px: number; pz: number }
 let wallSegs: WallSeg[] = [], doorLeaves: THREE.Mesh[] = [], doorPivots: DoorPivot[] = [];
 const doorOpen: Record<string, DoorSwing> = {}; // opening id -> { t: how far open, 0..1, want: 0 or 1 }
 const show = { grid: false, swings: true, names: false, lamps: false };
@@ -1108,16 +1112,16 @@ function buildOpening(s: WallSeg, o: Opening, u0: number, u1: number) {
   if (slab) doorLeaves.push(slab); // an opening squeezed to nothing has no leaf to click
   // The leaf hangs from its hinge and lies along +x; turning it lays it across the opening or swings it open.
   const hinge = sw ? o.hinge === "start" ? u0 : u1 : u0, far = sw ? o.hinge === "start" ? u1 : u0 : u1;
-  const hp = onWall(s, hinge, o.sill, -1), fp = onWall(s, far, o.sill, -1);
+  const hp = onWall(s, hinge, o.sill, -HINGE_SET), fp = onWall(s, far, o.sill, -HINGE_SET);
   const shut = Math.atan2(-(fp.z - hp.z), fp.x - hp.x);
   let turn = 0;
   if (sw) {
     const open = Math.atan2(-(sw.oy - sw.hy), sw.ox - sw.hx);
     turn = Math.atan2(Math.sin(open - shut), Math.cos(open - shut));
-    doorPivots.push({ swing: doorOpen[o.id] ??= { t: 0, want: 0 }, leaf, shut, turn });
+    doorPivots.push({ id: o.id, swing: doorOpen[o.id] ??= { t: 0, want: 0 }, leaf, shut, turn, reach: 1, px: hp.x, pz: hp.z });
   }
   leaf.position.copy(hp);
-  leaf.rotation.y = shut + turn * (doorOpen[o.id]?.t ?? 0);
+  leaf.rotation.y = shut;
   s.group.add(leaf);
 }
 // The quarter circle of floor a hinged door sweeps over, shaded with its outline.
@@ -1289,6 +1293,22 @@ function hungOn(it: Item, face: Wall) {
   const fixed = { N: c.northWall, E: c.eastWall, S: state.room.L, W: 0 }[back];
   return wallSegs.find(s => s.wall === back && s.fixed === fixed) || null;
 }
+// Moves each door toward open or shut, and swings whatever hangs on it round the same pivot.
+function swingDoors(elapsed: number) {
+  for (const d of doorPivots) {
+    const s = d.swing;
+    stepDoor(s, elapsed);
+    const swung = d.turn * d.reach * s.t * s.t * (3 - 2 * s.t), c = Math.cos(swung), sn = Math.sin(swung);
+    d.leaf.rotation.y = d.shut + swung;
+    for (const it of state.items) {
+      const b = it.door === d.id ? built.get(it.id) : undefined;
+      if (!b) continue;
+      const rx = it.x + it.w / 2 - d.px, rz = it.y + it.d / 2 - d.pz;
+      b.group.position.set(d.px + rx * c + rz * sn, it.z, d.pz - rx * sn + rz * c);
+      b.group.rotation.y = FACE_TURN[frontDir(it)] - turnOf(it) * Math.PI / 180 + swung;
+    }
+  }
+}
 function sync() {
   const key = JSON.stringify([state.room, state.openings]);
   if (key !== roomKey) { roomKey = key; buildRoom(); }
@@ -1309,6 +1329,8 @@ function sync() {
     seen.add(it.id);
   }
   for (const [id, b] of built) if (!seen.has(id)) { wipe(b.group); itemsG.remove(b.group); built.delete(id); }
+  for (const d of doorPivots) { const o = state.openings.find(x => x.id === d.id); d.reach = o ? openAngle(o, state.items) / 90 : 1; }
+  swingDoors(0);
   lamplight();
 
   wipe(pickG); wipe(overlayG);
@@ -1535,11 +1557,7 @@ function frame(now: number) {
     controls.target.lerpVectors(flight.t0, flight.t1, e);
     if (k === 1) flight = null;
   }
-  for (const d of doorPivots) {
-    const s = d.swing;
-    stepDoor(s, elapsed);
-    d.leaf.rotation.y = d.shut + d.turn * s.t * s.t * (3 - 2 * s.t);
-  }
+  swingDoors(elapsed);
   controls.update();
   updateWalls();
   renderer.render(scene, camera);

@@ -46,4 +46,6 @@ test("a room file with a mistake is refused with a message that says where", asy
   assert.throws(bad(r => { r.layouts[0].items[2].kind = "sofa"; }), /layouts\[0\]\.items\[2\]\.kind must be one of bed, /);
   assert.throws(bad(r => { delete r.room.H; }), /room\.H must be a number/);
   assert.throws(bad(r => { r.layouts[1].items[0].photos = ["nowhere"]; }), /layouts\[1\]\.items\[0\]\.photos names "nowhere", which is not in prints/);
+  assert.throws(bad(r => { r.layouts[0].items[0].door = "window"; }), /layouts\[0\]\.items\[0\]\.door names "window", which is not a hinged door/);
+  assert.throws(bad(r => { r.layouts[0].items[0].door = "garage"; }), /layouts\[0\]\.items\[0\]\.door names "garage", which is not a hinged door/);
 });

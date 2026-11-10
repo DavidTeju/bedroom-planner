@@ -59,6 +59,7 @@ export interface Item {
   photos?: string[];
   lm?: number; // a light's lumens, when it is not the usual bulb
   down?: number; // the share of its light a shade sends downward
+  door?: string; // the id of the hinged door it hangs on; it swings with the leaf
 }
 
 // Any box on the floor plan, such as a piece's footprint or the in-push.
@@ -117,6 +118,7 @@ export interface ItemSpec {
   photos?: string[];
   lm?: number;
   down?: number;
+  door?: string; // the id of the hinged door it hangs on
 }
 
 export interface LayoutSpec {

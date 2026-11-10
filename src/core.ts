@@ -304,8 +304,34 @@ export function inQuarter(item: Item, g: Swing): boolean {
 export function inSwing(it: Item): boolean {
   return it.solid && state.openings.some(o => {
     const g = swingGeom(o);
-    return g && g.inward && it.z < o.sill + o.h && inQuarter(it, g);
+    return g && g.inward && it.door !== o.id && it.z < o.sill + o.h && inQuarter(it, g);
   });
+}
+// The hinge pin sits this far behind the wall line; the 3D view hangs the leaf from it.
+export const HINGE_SET = 1;
+// How far a hinged door opens, in degrees, before something hung on it meets a wall or the
+// in-push: 90 when nothing on it gets in the way, or when it swings out and carries its pieces
+// through the doorway. Checks points round each hung piece's outline.
+export function openAngle(o: Opening, items: Item[]): number {
+  const g = swingGeom(o), hung = items.filter(it => it.door === o.id);
+  if (!g || !g.inward || !hung.length) return 90;
+  const s = opSeg(o), px = g.hx - s.nx * HINGE_SET, py = g.hy - s.ny * HINGE_SET;
+  const a0 = Math.atan2(g.fy - g.hy, g.fx - g.hx), a1 = Math.atan2(g.oy - g.hy, g.ox - g.hx);
+  const dir = Math.sign(Math.atan2(Math.sin(a1 - a0), Math.cos(a1 - a0)));
+  const r = state.room, b = bumpRect(), pts: [number, number][] = [];
+  for (const it of hung) {
+    const f = footprint(it), nx = Math.ceil(f.w), ny = Math.ceil(f.d);
+    for (let i = 0; i <= nx; i++) pts.push([f.x + f.w * i / nx, f.y], [f.x + f.w * i / nx, f.y + f.d]);
+    for (let j = 1; j < ny; j++) pts.push([f.x, f.y + f.d * j / ny], [f.x + f.w, f.y + f.d * j / ny]);
+  }
+  const inRoom = (x: number, y: number) => x > -0.01 && y > -0.01 && x < r.W + 0.01 && y < r.L + 0.01 && !(x > b.x + 0.01 && y < b.y + b.d - 0.01);
+  let best = 0;
+  for (let deg = 0; deg <= 90; deg += 0.25) {
+    const t = dir * deg * Math.PI / 180, c = Math.cos(t), sn = Math.sin(t);
+    if (!pts.every(([x, y]) => inRoom(px + (x - px) * c - (y - py) * sn, py + (x - px) * sn + (y - py) * c))) break;
+    best = deg;
+  }
+  return best;
 }
 // A wardrobe has a hinged door for about every 20 in of front, in pairs hinged on their outer
 // edges; each sweeps a quarter circle as wide as the door. Same shape as swingGeom's result.

@@ -52,6 +52,13 @@ means writing one file.
   with his boots on a tray under it. A board's model lies flat instead when it is wider than tall.
   The furniture list also offers a leaning ladder shelf, which the window layout uses on the
   in-push, and a bean bag modelled as one sagging fabric sack with a sat-in seat.
+- **Hooks:** a piece named as a hook rail draws hooks about every 3½ in, steel hooks on a wooden
+  rail or oak knobs on a steel one. The window layout hangs an over-the-door hook rack on the
+  bedroom door and a steel double hook on the in-push just past where the open door ends.
+- **Pieces on a door** (`door` on a piece, naming the opening) swing with the leaf in 3D, the
+  door's own sweep never counts as blocking them, and the door opens only until one of them meets
+  a wall or the in-push (`openAngle` in `src/core.ts`). The window layout's rack stops the door
+  at about 77°.
 - **On a phone** the 3D page is a viewer: the layouts are tabs, there is no editing panel, a drag
   turns the room and a tap names a piece. A screen at most 760 px wide or 500 px tall counts
   as a phone. Editing needs a wider screen.
@@ -120,7 +127,8 @@ ready-made layouts, the bench, the lighting estimate, the cloth shapes and the p
 3. List your furniture. In `start` and in each layout, a piece needs a `name`, a `kind` (one of
    the kinds in `src/types.ts`), its north-west corner `x`, `y` and its size `w`, `d`, `h`. Add `z`
    to lift it off the floor and `headSide` to give it a headboard on that side; its colour comes
-   from its kind unless you give one.
+   from its kind unless you give one. To hang a piece on a door, give it `door` with that
+   opening's `id` and place it against the shut door's inside face.
 4. Put your own photos in `public/prints/<key>.jpg`, describe each under `prints`, and name them in
    a frame's `photos`. Without photos, set `prints` to `{}` and drop `photos` from the frames,
    which then show a made-up picture.

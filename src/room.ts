@@ -25,7 +25,8 @@ function opening(v: unknown, path: string): Opening {
   };
 }
 
-function item(v: unknown, path: string, prints: Obj): ItemSpec {
+// doors: the ids of the openings a piece can hang on, the hinged doors.
+function item(v: unknown, path: string, prints: Obj, doors: Set<string>): ItemSpec {
   const o = obj(v, path);
   const photos = o.photos === undefined ? undefined : list(o.photos, path + ".photos").map((p, i) => {
     const key = str(p, `${path}.photos[${i}]`);
@@ -44,6 +45,10 @@ function item(v: unknown, path: string, prints: Obj): ItemSpec {
   if (photos) spec.photos = photos;
   if (o.lm !== undefined) spec.lm = num(o.lm, path + ".lm");
   if (o.down !== undefined) spec.down = num(o.down, path + ".down");
+  if (o.door !== undefined) {
+    const id = str(o.door, path + ".door");
+    spec.door = doors.has(id) ? id : fail(path + ".door", `names "${id}", which is not a hinged door`);
+  }
   return spec;
 }
 
@@ -52,11 +57,13 @@ export function parseRoom(v: unknown): RoomFile {
   const f = obj(v, "the room file");
   const r = obj(f.room, "room"), t = obj(f.theme, "theme"), prints = obj(f.prints, "prints");
   const text = (key: string) => str(t[key], "theme." + key);
+  const openings = list(f.openings, "openings").map((o, i) => opening(o, `openings[${i}]`));
+  const doors = new Set(openings.filter(o => o.kind !== "window" && o.hinge !== "none").map(o => o.id));
   return {
     name: str(f.name, "name"),
     room: { W: num(r.W, "room.W"), L: num(r.L, "room.L"), bx: num(r.bx, "room.bx"), by: num(r.by, "room.by"), H: num(r.H, "room.H"), flush: num(r.flush, "room.flush"), near: num(r.near, "room.near") },
-    openings: list(f.openings, "openings").map((o, i) => opening(o, `openings[${i}]`)),
-    start: list(f.start, "start").map((s, i) => item(s, `start[${i}]`, prints)),
+    openings,
+    start: list(f.start, "start").map((s, i) => item(s, `start[${i}]`, prints, doors)),
     theme: { name: text("name"), walls: text("walls"), floor: text("floor"), sheets: text("sheets"), throw: text("throw"), accent: text("accent"), wardrobePaint: text("wardrobePaint"), chestPaint: text("chestPaint") },
     prints: Object.fromEntries(Object.entries(prints).map(([key, p]) => {
       const o = obj(p, `prints.${key}`), at = (k: string) => `prints.${key}.${k}`;
@@ -66,7 +73,7 @@ export function parseRoom(v: unknown): RoomFile {
       const o = obj(l, `layouts[${i}]`), at = (k: string) => `layouts[${i}].${k}`;
       const layout: LayoutSpec = {
         id: str(o.id, at("id")), name: str(o.name, at("name")), note: str(o.note, at("note")), why: str(o.why, at("why")),
-        items: list(o.items, at("items")).map((s, j) => item(s, `layouts[${i}].items[${j}]`, prints))
+        items: list(o.items, at("items")).map((s, j) => item(s, `layouts[${i}].items[${j}]`, prints, doors))
       };
       if (o.slug !== undefined) layout.slug = str(o.slug, at("slug"));
       return layout;

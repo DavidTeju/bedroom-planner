@@ -392,7 +392,7 @@ test("the window layout has a ladder shelf on the in-push instead of an open clo
       count: plan.items.length, mentionsRack: /RIGGA|rack/.test(plan.why ?? "")
     });
   })());
-  assert.deepEqual(out, { racks: 0, ladder: [[101, 48, 24, 16, 72, "S"]], count: 22, mentionsRack: false });
+  assert.deepEqual(out, { racks: 0, ladder: [[101, 48, 24, 16, 72, "S"]], count: 24, mentionsRack: false });
 });
 
 test("the bean bag is one sagging fabric sack, not stacked spheres", () => {
@@ -725,3 +725,42 @@ test("both views draw the gilt moulding from the shared profile", () => {
   assert.match(art2d, /giltFrame\(/, "the wall views follow the shared profile");
   assert.match(art2d, /b\.color/, "the wall views paint each band in the shared palette");
 });
+
+test("a piece hung on a door rides on it, so that door's swing does not block it", async () => {
+  const { inSwing, isBad, state } = await loadCore();
+  state.items = [];
+  const rack = piece({ name: "Over-the-door rack", kind: "other", x: 61, y: 0, w: 17.75, d: 3.5, h: 4.125, z: 75.875 });
+  assert.equal(inSwing(rack), true, "on the floor plan it sits where the door sweeps");
+  assert.equal(inSwing({ ...rack, door: "door" }), false);
+  assert.equal(isBad({ ...rack, door: "door" }), false);
+  assert.equal(inSwing({ ...rack, door: "closet" }), true, "hanging on a different door does not help");
+});
+
+test("a door carrying a piece opens only until the piece meets a wall", async () => {
+  const { BUILTIN, DEFAULT, openAngle } = await loadCore();
+  const door = must(DEFAULT.openings.find(o => o.id === "door"));
+  const plan = must(BUILTIN.find(p => p.name === "Bed facing the window"));
+  assert.equal(openAngle(door, []), 90);
+  assert.equal(openAngle(door, plan.items.filter(i => !i.door)), 90);
+  // The rack's edge nearest the hinge is 19.25 in along the door and 4.5 in out from the hinge pin
+  // (3.5 in of rack plus the 1 in the pin sits behind the wall line), so it meets the in-push there.
+  const a = openAngle(door, plan.items), want = Math.atan(19.25 / 4.5) * 180 / Math.PI;
+  assert.ok(Math.abs(a - want) < 0.5, `opens to ${a}, not about ${want}`);
+  const centred = plan.items.map(i => i.door ? { ...i, x: 69.625 } : i);
+  assert.ok(openAngle(door, centred) < a - 8, "a rack centred on the door meets the wall sooner");
+  // A door that swings out takes what hangs on its inside face out through the doorway with it.
+  assert.equal(openAngle({ ...door, swing: "out" }, plan.items), 90);
+});
+
+test("the window layout hangs a wood rack on the bedroom door and a steel double hook on the in-push past it", async () => {
+  const { BUILTIN, DEFAULT, frontDir, isBad, state } = await loadCore();
+  const plan = must(BUILTIN.find(p => p.name === "Bed facing the window"));
+  state.items = plan.items;
+  const door = must(DEFAULT.openings.find(o => o.id === "door"));
+  const rack = must(plan.items.find(i => i.door === "door")), hook = must(plan.items.find(i => /mollie/i.test(i.name)));
+  assert.deepEqual([rack.x, rack.y, rack.w, rack.d, rack.z + rack.h, frontDir(rack)], [61, 0, 17.75, 3.5, door.h, "S"]);
+  assert.deepEqual([hook.x + hook.w, frontDir(hook)], [DEFAULT.room.W - DEFAULT.room.bx, "W"], "on the in-push's west face");
+  assert.ok(hook.y > door.w && hook.y + hook.d <= DEFAULT.room.by, "between the open door's edge and the in-push corner");
+  assert.deepEqual([isBad(rack), isBad(hook)], [false, false]);
+});
+
